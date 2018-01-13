@@ -391,6 +391,8 @@ class dog(object):
             else pair_of_frozen_sets
         )
         _check_special_format_arg_names_support('error', self._error_special_arg_names, _ERROR_REFS)
+        if propagate_exception and _REF_RET in self._error_special_arg_names:
+            raise ValueError('Can not use @ret in error message when allowing error propagation')
 
         # Simple attributes
         self._extra = extra
