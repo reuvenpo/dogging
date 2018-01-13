@@ -182,16 +182,22 @@ def _get_simplified_traceback(tb):
 # Helper functions
 
 def _resolve_specification_string(spec):
-    return INFO, spec
+    return INFO, spec, None
 
 
 def _resolve_specification_sequence(spec):
-    level, format_string = spec
-    return level, format_string
+    length = len(spec)
+    if length == 2:
+        level, format_string = spec
+        return level, format_string, None
+    if length == 3:
+        level, format_string, extra = spec
+        return level, format_string, extra
+    raise ValueError('Unsupported length of sequence in specification')
 
 
 def _resolve_specification_none(_):
-    return None, None
+    return None, None, None
 
 
 _SPEC_RESOLVERS = {
@@ -328,10 +334,13 @@ class Extra(object):
 
 class dog(object):
     __slots__ = (
-        '_enter_level', '_enter_format', '_enter_special_arg_names', '_enter_regular_arg_names',
-        '_exit_level', '_exit_format', '_exit_special_arg_names', '_exit_regular_arg_names',
-        '_error_level', '_error_format', '_error_special_arg_names', '_error_regular_arg_names',
-        '_extra', 'logger', '_catch', '_propagate', '_exc_info',
+        '_enter_level', '_enter_format', '_enter_extra',
+        '_enter_special_arg_names', '_enter_regular_arg_names',
+        '_exit_level', '_exit_format', '_exit_extra',
+        '_exit_special_arg_names', '_exit_regular_arg_names',
+        '_error_level', '_error_format', '_error_extra',
+        '_error_special_arg_names', '_error_regular_arg_names',
+        'logger', '_catch', '_propagate', '_exc_info',
         '_default_ret', '_default_ret_ref',
     )
 
@@ -343,10 +352,22 @@ class dog(object):
         catch=Exception, propagate_exception=True,
         exc_info=False, default_ret=None
     ):
-        # Levels and format string for each logging phase
-        self._enter_level, self._enter_format = _resolve_specification(enter)
-        self._exit_level, self._exit_format = _resolve_specification(exit)
-        self._error_level, self._error_format = _resolve_specification(error)
+        self._enter_extra = extra
+        self._exit_extra = extra
+        self._error_extra = extra
+
+        # Levels, format string and extras for each logging phase
+        self._enter_level, self._enter_format, enter_extra = _resolve_specification(enter)
+        self._exit_level, self._exit_format, exit_extra = _resolve_specification(exit)
+        self._error_level, self._error_format, error_extra = _resolve_specification(error)
+
+        # Override extra per-phase
+        if enter_extra:
+            self._enter_extra = enter_extra
+        if exit_extra:
+            self._exit_extra = exit_extra
+        if error_extra:
+            self._error_extra = error_extra
 
         # Extract the arg names from the replacement fields in the format string
         enter_arg_names = (
@@ -395,7 +416,6 @@ class dog(object):
             raise ValueError('Can not use @ret in error message when allowing error propagation')
 
         # Simple attributes
-        self._extra = extra
         self.logger = logger or _DEFAULT_LOGGER
         self._catch = catch
         self._propagate = propagate_exception
@@ -462,10 +482,13 @@ class dog(object):
         default_ret = self._default_ret
         enter_level = self._enter_level
         enter_format = self._enter_format
+        enter_extra = self._enter_extra
         exit_level = self._exit_level
         exit_format = self._exit_format
+        exit_extra = self._exit_extra
         error_level = self._error_level
         error_format = self._error_format
+        error_extra = self._error_extra
 
         # Check which phases are required
         need_log_enter = self._enter_format is not None
@@ -511,9 +534,9 @@ class dog(object):
         def wrapper(*args, **kwargs):
             tb = None
             logger = self._get_logger(wrapped_func)
-            log_enter = partial(log, logger, enter_level, enter_format)
-            log_exit = partial(log, logger, exit_level, exit_format)
-            log_error = partial(log, logger, error_level, error_format)
+            log_enter = partial(log, logger, enter_level, enter_format, extra=enter_extra)
+            log_exit = partial(log, logger, exit_level, exit_format, extra=exit_extra)
+            log_error = partial(log, logger, error_level, error_format, extra=error_extra)
 
             @_run_once
             def build_argument_references():
@@ -670,7 +693,7 @@ class dog(object):
         else:
             return logger
 
-    def _log(self, logger, level, message, builders):
+    def _log(self, logger, level, message, builders, extra):
         @_run_once
         def builder():
             arguments = {}
@@ -678,7 +701,7 @@ class dog(object):
                 arguments.update(build())
             return arguments
 
-        extra = self._extra(builder) if self._extra else None
+        extra = extra(builder) if extra else None
 
         logger.log(
             level,
