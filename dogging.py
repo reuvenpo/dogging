@@ -5,6 +5,7 @@ from string import Formatter as _Formatter
 from functools import wraps as _wraps
 from functools import partial as _partial
 from itertools import imap as _map
+from itertools import chain as _chain
 import logging as _logging
 # Import the logging levels for user convenience
 from logging import DEBUG, INFO, WARN, WARNING, ERROR, FATAL, CRITICAL
@@ -310,6 +311,13 @@ class Extra(object):
      LogRecord. This means access to the functions parameters, as well as any
      relevant special-references. (If you want to use a special-reference you
      should first make sure it's in the dictionary)
+    By default, only the parameters used by the logging message of a phase will
+     be available to the methods of your subclass. In order to request
+     parameters that weren't referenced by the message, you must specify them in
+     a class-attribute ``__refs__``, which should be any iterable of strings.
+     The same checks that apply to format arguments in the logging message apply
+     to these strings. (!) For consistency and robustness, specify any
+     parameters you intend to use in the __refs__ attribute of your class (!).
     """
     def __init__(self, builder):
         self.__builder = builder
@@ -389,6 +397,14 @@ class dog(object):
         for arg_names in (enter_arg_names, exit_arg_names, error_arg_names):
             if arg_names is not None:
                 _check_format_arg_names_no_positional(arg_names)
+
+        # Add references from extra parameters to arg_name lists
+        if self._enter_extra:
+            enter_arg_names = _chain(enter_arg_names, self._enter_extra.__refs__)
+        if self._exit_extra:
+            exit_arg_names = _chain(exit_arg_names, self._exit_extra.__refs__)
+        if self._error_extra:
+            error_arg_names = _chain(error_arg_names, self._error_extra.__refs__)
 
         # For each logging phase, find which special arg names we would need
         #  and check that they are suitable for the specific phase.
