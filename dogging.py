@@ -307,7 +307,7 @@ class Extra(object):
      match the names of your methods, and whose values equal the return values
      from your methods.
     Your methods will be called every time a LogRecord is generated.
-    In your methods, you can access the ``self.refs`` property, returning
+    In your methods, you can access the ``self._args`` property, returning
      the dictionary of arg-names used to format the message for the specific
      LogRecord. This means access to the function's parameters, as well as any
      relevant special-arg-names. (If you want to use a special-arg-names you
@@ -315,10 +315,10 @@ class Extra(object):
     By default, only the arg-names used by the logging message of a phase will
      be available to the methods of your subclass. In order to use arg-names
      that weren't referenced by the message, you must specify them in
-     a class-attribute ``__refs__``, which should be any iterable of strings.
+     a class-attribute ``__args__``, which should be any iterable of strings.
      The same checks that apply to arg-names in the logging message apply
      to these strings. (!) For consistency and robustness, specify any
-     arg-names you intend to use in the __refs__ attribute of your class (!).
+     arg-names you intend to use in the __args__ attribute of your class (!).
     """
     __slots__ = ['__cache', '__builder']
 
@@ -337,7 +337,7 @@ class Extra(object):
         return list(self)
 
     @property
-    def refs(self):
+    def _args(self):
         if self.__cache is None:
             self.__cache = self.__builder()
         return self.__cache
@@ -403,11 +403,11 @@ class dog(object):
 
         # Add references from extra parameters to arg_name lists
         if self._enter_extra:
-            enter_arg_names = _chain(enter_arg_names, self._enter_extra.__refs__)
+            enter_arg_names = _chain(enter_arg_names, self._enter_extra.__args__)
         if self._exit_extra:
-            exit_arg_names = _chain(exit_arg_names, self._exit_extra.__refs__)
+            exit_arg_names = _chain(exit_arg_names, self._exit_extra.__args__)
         if self._error_extra:
-            error_arg_names = _chain(error_arg_names, self._error_extra.__refs__)
+            error_arg_names = _chain(error_arg_names, self._error_extra.__args__)
 
         # For each logging phase, find which special arg names we would need
         #  and check that they are suitable for the specific phase.
