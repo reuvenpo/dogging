@@ -320,6 +320,8 @@ class Extra(object):
      to these strings. (!) For consistency and robustness, specify any
      arg-names you intend to use in the __refs__ attribute of your class (!).
     """
+    __slots__ = ['__cache', '__builder']
+
     def __init__(self, builder):
         self.__builder = builder
         self.__cache = None
