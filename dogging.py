@@ -112,11 +112,11 @@ def _unwrap(func):
 _formatter = _Formatter()
 
 
-def unpack_lambda(func):
+def _unpack_lambda(func):
     return func()
 
 
-@unpack_lambda
+@_unpack_lambda
 def _lambda_dict():
     constant = {}
 
