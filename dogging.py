@@ -187,14 +187,21 @@ def _resolve_specification_string(spec):
 
 
 def _resolve_specification_sequence(spec):
-    length = len(spec)
-    if length == 2:
-        level, format_string = spec
-        return level, format_string, None
-    if length == 3:
-        level, format_string, extra = spec
-        return level, format_string, extra
-    raise ValueError('Unsupported length of sequence in specification')
+    level = None
+    format_string = None
+    extra = None
+
+    for part in spec:
+        if isinstance(part, int):
+            level = part
+        elif isinstance(part, basestring):
+            format_string = part
+        elif isinstance(part, ExtraAttributes):
+            extra = part
+        else:
+            raise TypeError('unsupported type for sequence specification')
+
+    return level, format_string, extra
 
 
 def _resolve_specification_none(_):
