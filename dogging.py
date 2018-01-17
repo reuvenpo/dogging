@@ -332,10 +332,6 @@ class ExtraAttributes(object):
     def __getitem__(self, item):
         return getattr(self, item)()
 
-    # For compatibility with the dict constructor, just in case
-    def keys(self):
-        return list(self)
-
     @property
     def _args(self):
         if self.__cache is None:
