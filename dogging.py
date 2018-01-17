@@ -11,7 +11,7 @@ import logging as _logging
 from logging import DEBUG, INFO, WARN, WARNING, ERROR, FATAL, CRITICAL
 
 __all__ = [
-    'dog', 'Extra',
+    'dog', 'ExtraAttributes',
     'DEBUG', 'INFO', 'WARN', 'WARNING', 'ERROR', 'FATAL', 'CRITICAL',
     'doggo',
 ]
@@ -296,7 +296,7 @@ class _Message(object):
         return self.message.format(**self.builder())
 
 
-class Extra(object):
+class ExtraAttributes(object):
     """Base class for classes describing dynamic extra LogRecord attributes.
 
     Subclass this class and create methods whose names don't begin with '_'.
