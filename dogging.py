@@ -201,6 +201,9 @@ def _resolve_specification_sequence(spec):
         else:
             raise TypeError('unsupported type for sequence specification')
 
+    if format_string is None:
+        raise ValueError('must specify a format string in a sequence specification')
+
     return level, format_string, extra
 
 
