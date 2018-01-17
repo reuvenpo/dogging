@@ -553,9 +553,9 @@ class dog(object):
         def wrapper(*args, **kwargs):
             tb = None
             logger = self._get_logger(wrapped_func)
-            log_enter = partial(log, logger, enter_level, enter_format, extra=enter_extra)
-            log_exit = partial(log, logger, exit_level, exit_format, extra=exit_extra)
-            log_error = partial(log, logger, error_level, error_format, extra=error_extra)
+            log_enter = partial(log, logger, enter_level, enter_format, enter_extra)
+            log_exit = partial(log, logger, exit_level, exit_format, exit_extra)
+            log_error = partial(log, logger, error_level, error_format, error_extra)
 
             @_run_once
             def build_func_arguments_args():
@@ -712,7 +712,7 @@ class dog(object):
         else:
             return logger
 
-    def _log(self, logger, level, message, builders, extra):
+    def _log(self, logger, level, message, extra, builders):
         @_run_once
         def builder():
             arguments = {}
