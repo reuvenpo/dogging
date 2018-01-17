@@ -1,4 +1,5 @@
 from sys import exc_info as _exc_info
+from time import time as _time
 from inspect import getcallargs as _getcallargs
 from inspect import getargspec as _getargspec
 from string import Formatter as _Formatter
@@ -30,6 +31,7 @@ CRITICAL = CRITICAL
 _ARG_FMT = '@{}'  # Common format for special format arg-names
 _ARG_LOGGER = _ARG_FMT.format('logger')
 _ARG_FUNC = _ARG_FMT.format('func')
+_ARG_TIME = _ARG_FMT.format('time')
 _ARG_RET = _ARG_FMT.format('ret')
 _ARG_ERR = _ARG_FMT.format('err')
 _ARG_TRACEBACK = _ARG_FMT.format('traceback')
@@ -41,11 +43,13 @@ _ENTER_ARGS = {
 _EXIT_ARGS = {
     _ARG_LOGGER,
     _ARG_FUNC,
+    _ARG_TIME,
     _ARG_RET,
 }
 _ERROR_ARGS = {
     _ARG_LOGGER,
     _ARG_FUNC,
+    _ARG_TIME,
     _ARG_RET,  # In this case it's the default return value
     _ARG_ERR,
     _ARG_TRACEBACK,
@@ -53,6 +57,7 @@ _ERROR_ARGS = {
 _ALL_ARGS = {
     _ARG_LOGGER,
     _ARG_FUNC,
+    _ARG_TIME,
     _ARG_RET,
     _ARG_ERR,
     _ARG_TRACEBACK,
@@ -490,12 +495,14 @@ class dog(object):
         #  them every time the wrapper is called:
 
         # Reference global invariants in the closure to avoid global lookup
+        time = _time
         partial = _partial
         lambda_dict = _lambda_dict
         getcallargs = _getcallargs
         get_simplified_traceback = _get_simplified_traceback
         ARG_LOGGER = _ARG_LOGGER
         ARG_FUNC = _ARG_FUNC
+        ARG_TIME = _ARG_TIME
         ARG_RET = _ARG_RET
         ARG_ERR = _ARG_ERR
         ARG_TRACEBACK = _ARG_TRACEBACK
@@ -534,12 +541,14 @@ class dog(object):
         exit_special_arg_names = self._exit_special_arg_names
         exit_needs_logger_arg = ARG_LOGGER in exit_special_arg_names
         exit_needs_func_arg = ARG_FUNC in exit_special_arg_names
+        exit_needs_time_arg = ARG_TIME in exit_special_arg_names
         exit_needs_return_arg = ARG_RET in exit_special_arg_names
 
         # Check which special arg-names are required by the error phase
         error_special_arg_names = self._error_special_arg_names
         error_needs_logger_arg = ARG_LOGGER in error_special_arg_names
         error_needs_func_arg = ARG_FUNC in error_special_arg_names
+        error_needs_time_arg = ARG_TIME in error_special_arg_names
         error_needs_error_arg = ARG_ERR in error_special_arg_names
         error_needs_traceback_arg = ARG_TRACEBACK in error_special_arg_names
         error_needs_return_arg = ARG_RET in error_special_arg_names
@@ -548,6 +557,8 @@ class dog(object):
             build_default_return_arg = self._build_default_return_arg
         else:
             build_default_return_arg = lambda_dict
+
+        needs_time_arg = exit_needs_time_arg or error_needs_time_arg
 
         # This function always returns the same value throughout the
         # lifetime of ``func``
@@ -558,6 +569,8 @@ class dog(object):
         @_wraps(func)
         def wrapper(*args, **kwargs):
             tb = None
+            start_time = None
+            end_time = None
             logger = self._get_logger(wrapped_func)
             log_enter = partial(log, logger, enter_level, enter_format, enter_extra)
             log_exit = partial(log, logger, exit_level, exit_format, exit_extra)
@@ -570,6 +583,9 @@ class dog(object):
             # Allowed to run every time because the logger may change
             def build_logger_arg():
                 return {ARG_LOGGER: logger}
+
+            def build_time_arg():
+                return {ARG_TIME: end_time - start_time}
 
             # log enter
             if need_log_enter:
@@ -588,8 +604,16 @@ class dog(object):
                 ))
             # Call the wrapped object
             try:
+                if needs_time_arg:
+                    start_time = time()
                 ret = func(*args, **kwargs)
+                if exit_needs_time_arg:
+                    end_time = time()
             except catch:
+                # duplicate this little clause here instead of wrapping the
+                # call to ``func`` with an extra try-finally clause.
+                if error_needs_time_arg:
+                    end_time = time()
                 t, v, tb = _exc_info()
 
                 # log error
@@ -625,6 +649,10 @@ class dog(object):
                         if error_needs_func_arg
                         else lambda_dict,
 
+                        build_time_arg
+                        if error_needs_time_arg
+                        else lambda_dict,
+
                         build_error_arg
                         if error_needs_error_arg
                         else lambda_dict,
@@ -656,6 +684,9 @@ class dog(object):
                     else lambda_dict,
                     build_function_arg
                     if exit_needs_func_arg
+                    else lambda_dict,
+                    build_time_arg()
+                    if exit_needs_time_arg
                     else lambda_dict,
                     build_return_arg
                     if exit_needs_return_arg
