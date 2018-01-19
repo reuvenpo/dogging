@@ -685,7 +685,7 @@ class dog(object):
                     build_function_arg
                     if exit_needs_func_arg
                     else lambda_dict,
-                    build_time_arg()
+                    build_time_arg
                     if exit_needs_time_arg
                     else lambda_dict,
                     build_return_arg
