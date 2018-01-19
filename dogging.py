@@ -237,20 +237,20 @@ def _get_format_arg_name_from_field_name(field_name):
     return arg_name
 
 
+def _validate_format_conv_method_and_get_field_name(replacement_field):
+    # In these tuples:
+    # The 2nd field is the field-name.
+    # The 4th field is the conversion-method.
+    _formatter.convert_field(0, replacement_field[3])
+    return replacement_field[1]
+
+
 def _get_format_arg_names(format_string):
     return [
         _get_format_arg_name_from_field_name(field_name)
         for field_name
         in (
-            # In these tuples:
-            # The 2nd field is the field-name.
-            # The 4th field is the conversion-method.
-            # I intentionally build the tuple this way to squeeze in the
-            #  conversion-method validation while still using list comp.
-            (
-                replacement_field[1],
-                _formatter.convert_field(0, replacement_field[3]),
-            )[0]
+            _validate_format_conv_method_and_get_field_name(replacement_field)
             for replacement_field
             in _formatter.parse(format_string)
         )
