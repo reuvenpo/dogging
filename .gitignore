@@ -1,1 +1,8 @@
 *.py[cod]
+
+# build artifacts
+build/
+dist/
+*.egg-info/
+.eggs/
+*/VERSION
