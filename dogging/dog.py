@@ -26,15 +26,14 @@ ERROR = ERROR
 FATAL = FATAL
 CRITICAL = CRITICAL
 
+_SPECIAL_ARG_PREFIX = '@'  # Common prefix for special format arg-names
 # Names of the special format arg-names
-# _REF_FMT = '__{}__'
-_ARG_FMT = '@{}'  # Common format for special format arg-names
-_ARG_LOGGER = _ARG_FMT.format('logger')
-_ARG_FUNC = _ARG_FMT.format('func')
-_ARG_TIME = _ARG_FMT.format('time')
-_ARG_RET = _ARG_FMT.format('ret')
-_ARG_ERR = _ARG_FMT.format('err')
-_ARG_TRACEBACK = _ARG_FMT.format('traceback')
+_ARG_LOGGER = _SPECIAL_ARG_PREFIX + 'logger'
+_ARG_FUNC = _SPECIAL_ARG_PREFIX + 'func'
+_ARG_TIME = _SPECIAL_ARG_PREFIX + 'time'
+_ARG_RET = _SPECIAL_ARG_PREFIX + 'ret'
+_ARG_ERR = _SPECIAL_ARG_PREFIX + 'err'
+_ARG_TRACEBACK = _SPECIAL_ARG_PREFIX + 'traceback'
 
 _ENTER_ARGS = {
     _ARG_LOGGER,
@@ -281,8 +280,11 @@ def _check_format_arg_names_no_positional(arg_names):
 
 def _separate_special_from_regular_arg_names(arg_names):
     """Split the arg_names into two lists, one of the special, and one of the regular arg-names."""
-    all_special_arg_names = _ALL_ARGS
-    return _filter2((lambda arg_name: arg_name in all_special_arg_names), arg_names)
+    special_prefix = _SPECIAL_ARG_PREFIX
+    return _filter2(
+        (lambda arg_name: arg_name.startswith(special_prefix)),
+        arg_names
+    )
 
 
 def _check_special_format_arg_names_support(phase, arg_names, supported):
