@@ -212,76 +212,26 @@ class dog(object):
         catch=Exception, propagate_exception=True,
         exc_info=False, default_ret=None
     ):
-        self._enter_extra = extra
-        self._exit_extra = extra
-        self._error_extra = extra
+        # Set empty values as default
+        self._enter_level = None
+        self._exit_level = None
+        self._error_level = None
 
-        # Levels, format string and extras for each logging phase
-        self._enter_level, self._enter_format, enter_extra = resolve_specification(enter)
-        self._exit_level, self._exit_format, exit_extra = resolve_specification(exit)
-        self._error_level, self._error_format, error_extra = resolve_specification(error)
+        self._enter_format = None
+        self._exit_format = None
+        self._error_format = None
 
-        # Override extra per-phase
-        if enter_extra:
-            self._enter_extra = enter_extra
-        if exit_extra:
-            self._exit_extra = exit_extra
-        if error_extra:
-            self._error_extra = error_extra
+        self._enter_extra = None
+        self._exit_extra = None
+        self._error_extra = None
 
-        # Extract the arg names from the replacement fields in the format string
-        enter_arg_names = (
-            get_format_arg_names(self._enter_format)
-            if self._enter_format is not None
-            else None
-        )
-        exit_arg_names = (
-            get_format_arg_names(self._exit_format)
-            if self._exit_format is not None
-            else None
-        )
-        error_arg_names = (
-            get_format_arg_names(self._error_format)
-            if self._error_format is not None
-            else None
-        )
-        # Check the format strings are valid
-        for arg_names in (enter_arg_names, exit_arg_names, error_arg_names):
-            if arg_names is not None:
-                check_format_arg_names_no_positional(arg_names)
+        self._enter_special_arg_names = None
+        self._exit_special_arg_names = None
+        self._error_special_arg_names = None
 
-        # Add references from extra parameters to arg_name lists
-        if self._enter_extra:
-            enter_arg_names = chain(enter_arg_names, self._enter_extra.__args__)
-        if self._exit_extra:
-            exit_arg_names = chain(exit_arg_names, self._exit_extra.__args__)
-        if self._error_extra:
-            error_arg_names = chain(error_arg_names, self._error_extra.__args__)
-
-        # For each logging phase, find which special arg names we would need
-        #  and check that they are suitable for the specific phase.
-        # Also collect the regular references to check them when wrapping a function.
-        pair_of_frozen_sets = (frozenset(),) * 2
-        self._enter_special_arg_names, self._enter_regular_arg_names = (
-            map(frozenset, separate_special_from_regular_arg_names(enter_arg_names))
-            if self._enter_format is not None
-            else pair_of_frozen_sets
-        )
-        check_special_format_arg_names_support('enter', self._enter_special_arg_names, _ENTER_ARGS)
-        self._exit_special_arg_names, self._exit_regular_arg_names = (
-            map(frozenset, separate_special_from_regular_arg_names(exit_arg_names))
-            if self._exit_format is not None
-            else pair_of_frozen_sets
-        )
-        check_special_format_arg_names_support('exit', self._exit_special_arg_names, _EXIT_ARGS)
-        self._error_special_arg_names, self._error_regular_arg_names = (
-            map(frozenset, separate_special_from_regular_arg_names(error_arg_names))
-            if self._error_format is not None
-            else pair_of_frozen_sets
-        )
-        check_special_format_arg_names_support('error', self._error_special_arg_names, _ERROR_ARGS)
-        if propagate_exception and _ARG_RET in self._error_special_arg_names:
-            raise ValueError('Can not use @ret in error message when allowing error propagation')
+        self._enter_regular_arg_names = None
+        self._exit_regular_arg_names = None
+        self._error_regular_arg_names = None
 
         # Simple attributes
         self.logger = logger or _DEFAULT_LOGGER
@@ -294,6 +244,95 @@ class dog(object):
             self._default_ret_arg = {}
         else:
             self._default_ret_arg = {_ARG_RET: self._default_ret}
+
+        self._set_extra(extra)
+        self._resolve_specifications(enter, exit, error)
+        self._parse_format_strings()
+        self._validate_special_arg_names()
+
+    def _set_extra(self, extra):
+        self._enter_extra = extra
+        self._exit_extra = extra
+        self._error_extra = extra
+
+    def _override_extras(self, enter, exit, error):
+        if enter:
+            self._enter_extra = enter
+        if exit:
+            self._exit_extra = exit
+        if error:
+            self._error_extra = error
+
+    def _resolve_specifications(self, enter, exit, error):
+        self._enter_level, self._enter_format, enter_extra = resolve_specification(enter)
+        self._exit_level, self._exit_format, exit_extra = resolve_specification(exit)
+        self._error_level, self._error_format, error_extra = resolve_specification(error)
+
+        self._override_extras(enter_extra, exit_extra, error_extra)
+
+    @staticmethod
+    def _get_format_arg_names(fmt):
+        return (
+            get_format_arg_names(fmt)
+            if fmt is not None
+            else ()
+        )
+
+    def _get_phases_arg_names(self):
+        # Extract the arg names from the replacement fields in the format string
+        enter_arg_names = self._get_format_arg_names(self._enter_format)
+        exit_arg_names = self._get_format_arg_names(self._exit_format)
+        error_arg_names = self._get_format_arg_names(self._error_format)
+        # Check the format strings are valid
+        for arg_names in (enter_arg_names, exit_arg_names, error_arg_names):
+            if arg_names:
+                check_format_arg_names_no_positional(arg_names)
+
+        # Add references from extra parameters to arg_name lists
+        if self._enter_extra:
+            enter_arg_names = chain(enter_arg_names, self._enter_extra.__args__)
+        if self._exit_extra:
+            exit_arg_names = chain(exit_arg_names, self._exit_extra.__args__)
+        if self._error_extra:
+            error_arg_names = chain(error_arg_names, self._error_extra.__args__)
+
+        return enter_arg_names, exit_arg_names, error_arg_names
+
+    def _separate_phase_arg_names_to_categories(self, enter_arg_names, exit_arg_names, error_arg_names):
+        # For each logging phase, find which special arg names we would need.
+        # Also collect the regular references to check them when wrapping a function.
+        pair_of_frozen_sets = (frozenset(),) * 2
+
+        def separate_arg_names(fmt, arg_names):
+            return (
+                map(frozenset, separate_special_from_regular_arg_names(arg_names))
+                if fmt is not None
+                else pair_of_frozen_sets
+            )
+
+        self._enter_special_arg_names, self._enter_regular_arg_names = (
+            separate_arg_names(self._enter_format, enter_arg_names)
+        )
+
+        self._exit_special_arg_names, self._exit_regular_arg_names = (
+            separate_arg_names(self._exit_format, exit_arg_names)
+        )
+
+        self._error_special_arg_names, self._error_regular_arg_names = (
+            separate_arg_names(self._error_format, error_arg_names)
+        )
+
+    def _validate_special_arg_names(self):
+        # Check that each phases special-arg-names are suitable for the specific phase.
+        check_special_format_arg_names_support('enter', self._enter_special_arg_names, _ENTER_ARGS)
+        check_special_format_arg_names_support('exit', self._exit_special_arg_names, _EXIT_ARGS)
+        check_special_format_arg_names_support('error', self._error_special_arg_names, _ERROR_ARGS)
+        if self._propagate and _ARG_RET in self._error_special_arg_names:
+            raise ValueError('Can not use @ret in error message when allowing error propagation')
+
+    def _parse_format_strings(self):
+        per_phase_arg_names = self._get_phases_arg_names()
+        self._separate_phase_arg_names_to_categories(*per_phase_arg_names)
 
     # This function always returns the same value throughout the
     # lifetime of a dog instance
