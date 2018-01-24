@@ -609,7 +609,7 @@ class dog(object):
 doggo = dog(
     enter='{{{}.__name__}}: *wag*'.format(_ARG_FUNC),
     exit='{{{}.__name__}}: whimper...'.format(_ARG_FUNC),
-    error=( CRITICAL, '{{{}.__name__}}: bark! bark!'.format(_ARG_FUNC)),
+    error=(CRITICAL, '{{{}.__name__}}: bark! bark!'.format(_ARG_FUNC)),
 )
 
 # Stack dogs for extra fun!
