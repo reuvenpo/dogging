@@ -1,15 +1,18 @@
-from sys import exc_info as _exc_info
-from time import time as _time
-from inspect import getcallargs as _getcallargs
-from inspect import getargspec as _getargspec
-from string import Formatter as _Formatter
-from functools import wraps as _wraps
-from functools import partial as _partial
-from itertools import imap as _map
-from itertools import chain as _chain
-import logging as _logging
+from sys import exc_info
+from time import time
+from inspect import getcallargs
+from inspect import getargspec
+from functools import wraps
+from functools import partial
+from itertools import imap as map
+from itertools import chain
+import logging
 # Import the logging levels for user convenience
 from logging import DEBUG, INFO, WARN, WARNING, ERROR, FATAL, CRITICAL
+
+from .chew_toys import *
+from .teeth import *
+from .bone import *
 
 __all__ = [
     'dog', 'ExtraAttributes',
@@ -65,132 +68,11 @@ _ALL_ARGS = {
 _DEFAULT_LOGGER = '__logger__'
 
 
-# Utilities:
-
-def _raise(exception):
-    raise exception
-
-
-def _filter2(predicate, it):
-    """Split the iterable ``it`` into two lists based on the function ``func``.
-
-    This function is a lot like the builtin ``filter``, except that instead of
-    throwing out the items that don't match, it splits the otiginal iterable
-    into two lists: one of matching objects and one of the other objects.
-    >>> _filter2((lambda x: x > 5), range(10))
-    ([6, 7, 8, 9], [0, 1, 2, 3, 4, 5])
-    """
-    yes = []
-    no = []
-    append = (no.append, yes.append)
-    for obj in it:
-        append[bool(predicate(obj))](obj)  # bool is a subclass of int
-
-    return yes, no
-
-
-def _is_int_like(obj):
-    """Can the object be turned into an integer?
-
-    Returns True or False indicating if the object can be turned into an int.
-    """
-    try:
-        int(obj)
-    except StandardError:
-        return False
-    return True
-
-
-def _unwrap(func):
-    """Unwrap all layers of function wrappers.
-
-    This is a simple version of Python3's ``inspect.unwrap()``
-    """
-    while True:
-        try:
-            func = func.__wrapped__
-        except AttributeError:
-            break
-    return func
-
-
-_formatter = _Formatter()
-
-
-def _unpack_lambda(func):
-    return func()
-
-
-@_unpack_lambda
-def _lambda_dict():
-    constant = {}
-
-    def _lambda_dict():
-        """Return an empty dictionary."""
-        return constant
-    return _lambda_dict
-
-
-# WARNING implementation specific
-# Modified from: http://lucumr.pocoo.org/2016/12/29/careful-with-str-format/
-# I kept the Python3 case to make it easier to port later.
-# This is a necessary API but it's undocumented and moved around
-# between Python releases
-try:
-    # Python3
-    from _string import formatter_field_name_split as _formatter_field_name_split
-except ImportError:
-    # Python2
-    def _formatter_field_name_split(field_name):
-        return field_name._formatter_field_name_split()
-
-
-# WARNING not thread safe because we don't need it to be.
-def _run_once(func):
-    """Call function once and cache its result.
-
-    This decorator is meant for idempotent functions taking no arguments.
-    Their return value is cached after the first call, and no subsequent calls
-    to the function will be made.
-    """
-    func.done = False
-
-    def wrapper():
-        if func.done:
-            return func.ret
-        ret = func()
-        func.done = True
-        func.ret = ret
-        return ret
-
-    return wrapper
-
-
-def _iter_traceback(tb):
-    while tb:
-        yield tb
-        tb = tb.tb_next
-
-
-def _get_simplified_traceback(tb):
-    return [
-        (
-            tb.tb_frame.f_code.co_filename,
-            tb.tb_lineno,
-            tb.tb_frame.f_code.co_name,
-        )
-        for tb
-        in _iter_traceback(tb)
-    ]
-
-
-# Helper functions
-
-def _resolve_specification_string(spec):
+def resolve_specification_string(spec):
     return INFO, spec, None
 
 
-def _resolve_specification_sequence(spec):
+def resolve_specification_sequence(spec):
     level = None
     format_string = None
     extra = None
@@ -211,83 +93,37 @@ def _resolve_specification_sequence(spec):
     return level, format_string, extra
 
 
-def _resolve_specification_none(_):
+def resolve_specification_none(_):
     return None, None, None
 
 
-_SPEC_RESOLVERS = {
-    str: _resolve_specification_string,
-    unicode: _resolve_specification_string,
-    tuple: _resolve_specification_sequence,
-    list: _resolve_specification_sequence,
-    type(None): _resolve_specification_none,
+SPEC_RESOLVERS = {
+    str: resolve_specification_string,
+    unicode: resolve_specification_string,
+    tuple: resolve_specification_sequence,
+    list: resolve_specification_sequence,
+    type(None): resolve_specification_none,
 }
 
 
-def _resolve_specification(spec):
+def resolve_specification(spec):
     try:
-        resolver = _SPEC_RESOLVERS[type(spec)]
+        resolver = SPEC_RESOLVERS[type(spec)]
     except KeyError:
         raise TypeError('Unsupported specification: {!r}'.format(spec))
     return resolver(spec)
 
 
-# WARNING implementation specific
-def _get_format_arg_name_from_field_name(field_name):
-    arg_name, rest = _formatter_field_name_split(field_name)
-    # Parse all of the field-name parts for format validation
-    for _ in rest:
-        pass
-    return arg_name
-
-
-def _validate_format_conv_method_and_get_field_name(replacement_field):
-    # In these tuples:
-    # The 2nd field is the field-name.
-    # The 4th field is the conversion-method.
-    _formatter.convert_field(0, replacement_field[3])
-    return replacement_field[1]
-
-
-def _get_format_arg_names(format_string):
-    return [
-        _get_format_arg_name_from_field_name(field_name)
-        for field_name
-        in (
-            _validate_format_conv_method_and_get_field_name(replacement_field)
-            for replacement_field
-            in _formatter.parse(format_string)
-        )
-        # None indicates that there is no replacement at all
-        if field_name is not None
-    ]
-
-
-def _some_format_arg_names_are_positional(arg_names):
-    return any(
-        arg_name == '' or _is_int_like(arg_name)
-        for arg_name
-        in arg_names
-    )
-
-
-def _check_format_arg_names_no_positional(arg_names):
-    if _some_format_arg_names_are_positional(arg_names):
-        raise ValueError(
-            'Unnamed or positional arg-names in format specification'
-        )
-
-
-def _separate_special_from_regular_arg_names(arg_names):
+def separate_special_from_regular_arg_names(arg_names):
     """Split the arg_names into two lists, one of the special, and one of the regular arg-names."""
     special_prefix = _SPECIAL_ARG_PREFIX
-    return _filter2(
+    return filter2(
         (lambda arg_name: arg_name.startswith(special_prefix)),
         arg_names
     )
 
 
-def _check_special_format_arg_names_support(phase, arg_names, supported):
+def check_special_format_arg_names_support(phase, arg_names, supported):
     if arg_names and not arg_names <= supported:
         raise ValueError(
             'unsupported special arg-names for {!r} logging phase: {}'
@@ -302,7 +138,7 @@ def _check_special_format_arg_names_support(phase, arg_names, supported):
         )
 
 
-class _Message(object):
+class Message(object):
     __slots__ = ('message', 'builder')
 
     def __init__(self, message, builder):
@@ -381,9 +217,9 @@ class dog(object):
         self._error_extra = extra
 
         # Levels, format string and extras for each logging phase
-        self._enter_level, self._enter_format, enter_extra = _resolve_specification(enter)
-        self._exit_level, self._exit_format, exit_extra = _resolve_specification(exit)
-        self._error_level, self._error_format, error_extra = _resolve_specification(error)
+        self._enter_level, self._enter_format, enter_extra = resolve_specification(enter)
+        self._exit_level, self._exit_format, exit_extra = resolve_specification(exit)
+        self._error_level, self._error_format, error_extra = resolve_specification(error)
 
         # Override extra per-phase
         if enter_extra:
@@ -395,55 +231,55 @@ class dog(object):
 
         # Extract the arg names from the replacement fields in the format string
         enter_arg_names = (
-            _get_format_arg_names(self._enter_format)
+            get_format_arg_names(self._enter_format)
             if self._enter_format is not None
             else None
         )
         exit_arg_names = (
-            _get_format_arg_names(self._exit_format)
+            get_format_arg_names(self._exit_format)
             if self._exit_format is not None
             else None
         )
         error_arg_names = (
-            _get_format_arg_names(self._error_format)
+            get_format_arg_names(self._error_format)
             if self._error_format is not None
             else None
         )
         # Check the format strings are valid
         for arg_names in (enter_arg_names, exit_arg_names, error_arg_names):
             if arg_names is not None:
-                _check_format_arg_names_no_positional(arg_names)
+                check_format_arg_names_no_positional(arg_names)
 
         # Add references from extra parameters to arg_name lists
         if self._enter_extra:
-            enter_arg_names = _chain(enter_arg_names, self._enter_extra.__args__)
+            enter_arg_names = chain(enter_arg_names, self._enter_extra.__args__)
         if self._exit_extra:
-            exit_arg_names = _chain(exit_arg_names, self._exit_extra.__args__)
+            exit_arg_names = chain(exit_arg_names, self._exit_extra.__args__)
         if self._error_extra:
-            error_arg_names = _chain(error_arg_names, self._error_extra.__args__)
+            error_arg_names = chain(error_arg_names, self._error_extra.__args__)
 
         # For each logging phase, find which special arg names we would need
         #  and check that they are suitable for the specific phase.
         # Also collect the regular references to check them when wrapping a function.
         pair_of_frozen_sets = (frozenset(),) * 2
         self._enter_special_arg_names, self._enter_regular_arg_names = (
-            _map(frozenset, _separate_special_from_regular_arg_names(enter_arg_names))
+            map(frozenset, separate_special_from_regular_arg_names(enter_arg_names))
             if self._enter_format is not None
             else pair_of_frozen_sets
         )
-        _check_special_format_arg_names_support('enter', self._enter_special_arg_names, _ENTER_ARGS)
+        check_special_format_arg_names_support('enter', self._enter_special_arg_names, _ENTER_ARGS)
         self._exit_special_arg_names, self._exit_regular_arg_names = (
-            _map(frozenset, _separate_special_from_regular_arg_names(exit_arg_names))
+            map(frozenset, separate_special_from_regular_arg_names(exit_arg_names))
             if self._exit_format is not None
             else pair_of_frozen_sets
         )
-        _check_special_format_arg_names_support('exit', self._exit_special_arg_names, _EXIT_ARGS)
+        check_special_format_arg_names_support('exit', self._exit_special_arg_names, _EXIT_ARGS)
         self._error_special_arg_names, self._error_regular_arg_names = (
-            _map(frozenset, _separate_special_from_regular_arg_names(error_arg_names))
+            map(frozenset, separate_special_from_regular_arg_names(error_arg_names))
             if self._error_format is not None
             else pair_of_frozen_sets
         )
-        _check_special_format_arg_names_support('error', self._error_special_arg_names, _ERROR_ARGS)
+        check_special_format_arg_names_support('error', self._error_special_arg_names, _ERROR_ARGS)
         if propagate_exception and _ARG_RET in self._error_special_arg_names:
             raise ValueError('Can not use @ret in error message when allowing error propagation')
 
@@ -465,7 +301,7 @@ class dog(object):
         return self._default_ret_arg
 
     def _check_function_args(self, func):
-        args, varargs, keywords, _ = _getargspec(func)
+        args, varargs, keywords, _ = getargspec(func)
         func_args = set(args)
         func_args.add(varargs)
         func_args.add(keywords)
@@ -490,18 +326,18 @@ class dog(object):
             )
 
     def __call__(self, func):
-        wrapped_func = _unwrap(func)
+        wrapped_func = unwrap(func)
         self._check_function_args(wrapped_func)
 
         # Cache some values so we don't need to recalculate
         #  them every time the wrapper is called:
 
         # Reference global invariants in the closure to avoid global lookup
-        time = _time
-        partial = _partial
-        lambda_dict = _lambda_dict
-        getcallargs = _getcallargs
-        get_simplified_traceback = _get_simplified_traceback
+        _time = time
+        _partial = partial
+        _lambda_dict = lambda_dict
+        _getcallargs = getcallargs
+        _get_simplified_traceback = get_simplified_traceback
         ARG_LOGGER = _ARG_LOGGER
         ARG_FUNC = _ARG_FUNC
         ARG_TIME = _ARG_TIME
@@ -558,29 +394,29 @@ class dog(object):
         if error_needs_return_arg:
             build_default_return_arg = self._build_default_return_arg
         else:
-            build_default_return_arg = lambda_dict
+            build_default_return_arg = _lambda_dict
 
         needs_time_arg = exit_needs_time_arg or error_needs_time_arg
 
         # This function always returns the same value throughout the
         # lifetime of ``func``
-        @_run_once
+        @run_once
         def build_function_arg():
             return {ARG_FUNC: wrapped_func}
 
-        @_wraps(func)
+        @wraps(func)
         def wrapper(*args, **kwargs):
             tb = None
             start_time = None
             end_time = None
             logger = self._get_logger(wrapped_func)
-            log_enter = partial(log, logger, enter_level, enter_format, enter_extra)
-            log_exit = partial(log, logger, exit_level, exit_format, exit_extra)
-            log_error = partial(log, logger, error_level, error_format, error_extra)
+            log_enter = _partial(log, logger, enter_level, enter_format, enter_extra)
+            log_exit = _partial(log, logger, exit_level, exit_format, exit_extra)
+            log_error = _partial(log, logger, error_level, error_format, error_extra)
 
-            @_run_once
+            @run_once
             def build_func_arguments_args():
-                return getcallargs(wrapped_func, *args, **kwargs)
+                return _getcallargs(wrapped_func, *args, **kwargs)
 
             # Allowed to run every time because the logger may change
             def build_logger_arg():
@@ -594,29 +430,29 @@ class dog(object):
                 log_enter((
                     build_func_arguments_args
                     if enter_needs_func_arguments
-                    else lambda_dict,
+                    else _lambda_dict,
 
                     build_logger_arg
                     if enter_needs_logger_arg
-                    else lambda_dict,
+                    else _lambda_dict,
 
                     build_function_arg
                     if enter_needs_func_arg
-                    else lambda_dict,
+                    else _lambda_dict,
                 ))
             # Call the wrapped object
             try:
                 if needs_time_arg:
-                    start_time = time()
+                    start_time = _time()
                 ret = func(*args, **kwargs)
                 if exit_needs_time_arg:
-                    end_time = time()
+                    end_time = _time()
             except catch:
                 # duplicate this little clause here instead of wrapping the
                 # call to ``func`` with an extra try-finally clause.
                 if error_needs_time_arg:
-                    end_time = time()
-                t, v, tb = _exc_info()
+                    end_time = _time()
+                t, v, tb = exc_info()
 
                 # log error
                 if need_log_error:
@@ -631,33 +467,33 @@ class dog(object):
                     # So that's why we make this more complicated.
                     if error_needs_traceback_arg:
                         # The first part is this frame so we cut it off
-                        simplified_tb = get_simplified_traceback(tb.tb_next)
+                        simplified_tb = _get_simplified_traceback(tb.tb_next)
 
                         def build_traceback_arg():
                             return {ARG_TRACEBACK: simplified_tb}
                     else:
-                        build_traceback_arg = lambda_dict
+                        build_traceback_arg = _lambda_dict
 
                     log_error((
                         build_func_arguments_args
                         if error_needs_func_arguments
-                        else lambda_dict,
+                        else _lambda_dict,
 
                         build_logger_arg
                         if error_needs_logger_arg
-                        else lambda_dict,
+                        else _lambda_dict,
 
                         build_function_arg
                         if error_needs_func_arg
-                        else lambda_dict,
+                        else _lambda_dict,
 
                         build_time_arg
                         if error_needs_time_arg
-                        else lambda_dict,
+                        else _lambda_dict,
 
                         build_error_arg
                         if error_needs_error_arg
-                        else lambda_dict,
+                        else _lambda_dict,
 
                         build_traceback_arg,
 
@@ -680,19 +516,19 @@ class dog(object):
                 log_exit((
                     build_func_arguments_args
                     if exit_needs_func_arguments
-                    else lambda_dict,
+                    else _lambda_dict,
                     build_logger_arg
                     if exit_needs_logger_arg
-                    else lambda_dict,
+                    else _lambda_dict,
                     build_function_arg
                     if exit_needs_func_arg
-                    else lambda_dict,
+                    else _lambda_dict,
                     build_time_arg
                     if exit_needs_time_arg
-                    else lambda_dict,
+                    else _lambda_dict,
                     build_return_arg
                     if exit_needs_return_arg
-                    else lambda_dict,
+                    else _lambda_dict,
                 ))
 
             return ret
@@ -705,17 +541,17 @@ class dog(object):
 
         if self._enter_format:
             arguments.append('enter=({}, {!r})'.format(
-                _logging.getLevelName(self._enter_level),
+                logging.getLevelName(self._enter_level),
                 self._enter_format,
             ))
         if self._exit_format:
             arguments.append('exit=({}, {!r})'.format(
-                _logging.getLevelName(self._exit_level),
+                logging.getLevelName(self._exit_level),
                 self._exit_format,
             ))
         if self._error_format:
             arguments.append('error=({}, {!r})'.format(
-                _logging.getLevelName(self._error_level),
+                logging.getLevelName(self._error_level),
                 self._error_format,
             ))
 
@@ -752,7 +588,7 @@ class dog(object):
             return logger
 
     def _log(self, logger, level, message, extra, builders):
-        @_run_once
+        @run_once
         def builder():
             arguments = {}
             for build in builders:
@@ -763,7 +599,7 @@ class dog(object):
 
         logger.log(
             level,
-            _Message(message, builder),
+            Message(message, builder),
             exc_info=self._exc_info,
             extra=extra
         )
