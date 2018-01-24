@@ -298,7 +298,10 @@ class dog(object):
 
         return enter_arg_names, exit_arg_names, error_arg_names
 
-    def _separate_phase_arg_names_to_categories(self, enter_arg_names, exit_arg_names, error_arg_names):
+    def _separate_phase_arg_names_to_categories(
+        self,
+        enter_arg_names, exit_arg_names, error_arg_names
+    ):
         # For each logging phase, find which special arg names we would need.
         # Also collect the regular references to check them when wrapping a function.
         pair_of_frozen_sets = (frozenset(),) * 2
