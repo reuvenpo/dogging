@@ -32,6 +32,8 @@ CRITICAL = CRITICAL
 
 _SPECIAL_ARG_PREFIX = '@'  # Common prefix for special format arg-names
 # Names of the special format arg-names
+_ARG_PATHNAME = _SPECIAL_ARG_PREFIX + 'pathname'
+_ARG_LINE = _SPECIAL_ARG_PREFIX + 'line'
 _ARG_LOGGER = _SPECIAL_ARG_PREFIX + 'logger'
 _ARG_FUNC = _SPECIAL_ARG_PREFIX + 'func'
 _ARG_TIME = _SPECIAL_ARG_PREFIX + 'time'
@@ -40,16 +42,22 @@ _ARG_ERR = _SPECIAL_ARG_PREFIX + 'err'
 _ARG_TRACEBACK = _SPECIAL_ARG_PREFIX + 'traceback'
 
 _ENTER_ARGS = {
+    _ARG_PATHNAME,
+    _ARG_LINE,
     _ARG_LOGGER,
     _ARG_FUNC,
 }
 _EXIT_ARGS = {
+    _ARG_PATHNAME,
+    _ARG_LINE,
     _ARG_LOGGER,
     _ARG_FUNC,
     _ARG_TIME,
     _ARG_RET,
 }
 _ERROR_ARGS = {
+    _ARG_PATHNAME,
+    _ARG_LINE,
     _ARG_LOGGER,
     _ARG_FUNC,
     _ARG_TIME,
@@ -58,6 +66,8 @@ _ERROR_ARGS = {
     _ARG_TRACEBACK,
 }
 _ALL_ARGS = {
+    _ARG_PATHNAME,
+    _ARG_LINE,
     _ARG_LOGGER,
     _ARG_FUNC,
     _ARG_TIME,
@@ -393,6 +403,8 @@ class dog(object):
         _lambda_dict = lambda_dict
         _getcallargs = getcallargs
         _get_simplified_traceback = get_simplified_traceback
+        ARG_PATHNAME = _ARG_PATHNAME
+        ARG_LINE = _ARG_LINE
         ARG_LOGGER = _ARG_LOGGER
         ARG_FUNC = _ARG_FUNC
         ARG_TIME = _ARG_TIME
@@ -427,11 +439,15 @@ class dog(object):
 
         # Check which special arg-names are required by the enter phase
         enter_special_arg_names = self._enter_special_arg_names
+        enter_needs_pathname_arg = ARG_PATHNAME in enter_special_arg_names
+        enter_needs_line_arg = ARG_LINE in enter_special_arg_names
         enter_needs_logger_arg = ARG_LOGGER in enter_special_arg_names
         enter_needs_func_arg = ARG_FUNC in enter_special_arg_names
 
         # Check which special arg-names are required by the exit phase
         exit_special_arg_names = self._exit_special_arg_names
+        exit_needs_pathname_arg = ARG_PATHNAME in exit_special_arg_names
+        exit_needs_line_arg = ARG_LINE in exit_special_arg_names
         exit_needs_logger_arg = ARG_LOGGER in exit_special_arg_names
         exit_needs_func_arg = ARG_FUNC in exit_special_arg_names
         exit_needs_time_arg = ARG_TIME in exit_special_arg_names
@@ -439,6 +455,8 @@ class dog(object):
 
         # Check which special arg-names are required by the error phase
         error_special_arg_names = self._error_special_arg_names
+        error_needs_pathname_arg = ARG_PATHNAME in error_special_arg_names
+        error_needs_line_arg = ARG_LINE in error_special_arg_names
         error_needs_logger_arg = ARG_LOGGER in error_special_arg_names
         error_needs_func_arg = ARG_FUNC in error_special_arg_names
         error_needs_time_arg = ARG_TIME in error_special_arg_names
@@ -453,8 +471,18 @@ class dog(object):
 
         needs_time_arg = exit_needs_time_arg or error_needs_time_arg
 
-        # This function always returns the same value throughout the
-        # lifetime of ``func``
+        pathname, line = get_caller_pathname_and_line()
+
+        # These function always returns the same value throughout the
+        # lifetime of ``func``:
+        @run_once
+        def build_pathname_arg():
+            return {ARG_PATHNAME: pathname}
+
+        @run_once
+        def build_line_arg():
+            return {ARG_LINE: line}
+
         @run_once
         def build_function_arg():
             return {ARG_FUNC: wrapped_func}
@@ -483,6 +511,14 @@ class dog(object):
             # log enter
             if need_log_enter:
                 log_enter((
+                    build_pathname_arg
+                    if enter_needs_pathname_arg
+                    else _lambda_dict,
+
+                    build_line_arg
+                    if enter_needs_line_arg
+                    else _lambda_dict,
+
                     build_func_arguments_args
                     if enter_needs_func_arguments
                     else _lambda_dict,
@@ -530,6 +566,14 @@ class dog(object):
                         build_traceback_arg = _lambda_dict
 
                     log_error((
+                        build_pathname_arg
+                        if error_needs_pathname_arg
+                        else _lambda_dict,
+
+                        build_line_arg
+                        if error_needs_line_arg
+                        else _lambda_dict,
+
                         build_func_arguments_args
                         if error_needs_func_arguments
                         else _lambda_dict,
@@ -569,6 +613,12 @@ class dog(object):
             # log exit
             if need_log_exit:
                 log_exit((
+                    build_pathname_arg
+                    if exit_needs_pathname_arg
+                    else _lambda_dict,
+                    build_line_arg
+                    if exit_needs_line_arg
+                    else _lambda_dict,
                     build_func_arguments_args
                     if exit_needs_func_arguments
                     else _lambda_dict,
