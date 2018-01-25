@@ -76,8 +76,6 @@ _ALL_ARGS = {
     _ARG_TRACEBACK,
 }
 
-_DEFAULT_LOGGER = '__logger__'
-
 
 def resolve_specification_string(spec):
     return INFO, spec, ()
@@ -263,7 +261,7 @@ class dog(object):
         self._error_regular_arg_names = None
 
         # Simple attributes
-        self.logger = logger or _DEFAULT_LOGGER
+        self.logger = logger
         self._catch = catch
         self._propagate = propagate_exception
         self._exc_info = exc_info
@@ -710,10 +708,13 @@ class dog(object):
 
     def _get_logger(self, wrapped_func):
         logger = self.logger
-        if isinstance(logger, str):
-            return wrapped_func.__globals__[logger]
+        if logger is None:
+            logger = logging.getLogger(wrapped_func.__globals__['__name__'])
+        elif isinstance(logger, str):
+            logger = logging.getLogger(logger)
         else:
-            return logger
+            logger = logger
+        return logger
 
     def _log(self, logger, level, message, extras, builders):
         @run_once
