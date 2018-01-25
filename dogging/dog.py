@@ -203,6 +203,24 @@ class ExtraAttributes(object):
         return self.__cache
 
 
+def join_extra_attributes(extras):
+    # ``extras`` is a sequence of ``ExtraAttributes`` subclasses.
+    # The methods of those classes are used to generate attributes
+    #  used by the logging.Formatter.
+    # We allow specifying multiple such classes, but if any of
+    #  their methods conflict, the methods of classes later in
+    #  the sequence should override those earlier in the sequence.
+    # The most concise and (probably) efficient way of implementing
+    #  this, is by using the sequence of classes as the bases of
+    #  another class, in reverse order.
+    # This also handles any multiple inheritance the user may have
+    #  specified really gracefully.
+    # If you understood what i was doing here without
+    #  reading this comment or reading the docs, congrats,
+    #  you are a Master of the Dark Arts.
+    return type('JoinedExtras', tuple(reversed(extras)), {})
+
+
 class dog(object):
     __slots__ = (
         '_enter_level', '_enter_format', '_enter_extras',
@@ -706,21 +724,7 @@ class dog(object):
             return arguments
 
         if extras:
-            # ``extras`` is a sequence of ``ExtraAttributes`` subclasses.
-            # The methods of those classes are used to generate attributes
-            #  used by the logging.Formatter.
-            # We allow specifying multiple such classes, but if any of
-            #  their methods conflict, the methods of classes later in
-            #  the sequence should override those earlier in the sequence.
-            # The most concise and (probably) efficient way of implementing
-            #  this, is by using the sequence of classes as the bases of
-            #  another class, in reverse order.
-            # This also handles any multiple inheritance the user may have
-            #  specified really gracefully.
-            # If you understood what i was doing here without
-            #  reading this comment or reading the docs, congrats,
-            #  you are a Master of the Dark Arts.
-            extras = type('AllExtras', tuple(reversed(extras)), {})
+            extras = join_extra_attributes(extras)
             extra = extras(builder)  # Instantiate the class
         else:
             extra = None
