@@ -616,21 +616,27 @@ class dog(object):
                     build_pathname_arg
                     if exit_needs_pathname_arg
                     else _lambda_dict,
+
                     build_line_arg
                     if exit_needs_line_arg
                     else _lambda_dict,
+
                     build_func_arguments_args
                     if exit_needs_func_arguments
                     else _lambda_dict,
+
                     build_logger_arg
                     if exit_needs_logger_arg
                     else _lambda_dict,
+
                     build_function_arg
                     if exit_needs_func_arg
                     else _lambda_dict,
+
                     build_time_arg
                     if exit_needs_time_arg
                     else _lambda_dict,
+
                     build_return_arg
                     if exit_needs_return_arg
                     else _lambda_dict,
