@@ -464,10 +464,10 @@ class dog(object):
             tb = None
             start_time = None
             end_time = None
-            logger = self._get_logger(wrapped_func)
-            log_enter = _partial(log, logger, enter_level, enter_format, enter_extras)
-            log_exit = _partial(log, logger, exit_level, exit_format, exit_extras)
-            log_error = _partial(log, logger, error_level, error_format, error_extras)
+            _logger = wrapper.logger
+            log_enter = _partial(log, _logger, enter_level, enter_format, enter_extras)
+            log_exit = _partial(log, _logger, exit_level, exit_format, exit_extras)
+            log_error = _partial(log, _logger, error_level, error_format, error_extras)
 
             @run_once
             def build_func_arguments_args():
@@ -588,6 +588,8 @@ class dog(object):
 
             return ret
 
+        logger = self._get_logger(wrapped_func)
+        wrapper.logger = logger
         wrapper.__wrapped__ = func
         return wrapper
 
