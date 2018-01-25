@@ -11,6 +11,7 @@ __all__ = [
     'get_format_arg_name_from_field_name',
     'iter_traceback',
     'get_simplified_traceback',
+    'get_caller_pathname_and_line',
 ]
 
 
@@ -71,3 +72,8 @@ if hasattr(sys, '_getframe'):
 
 def parent_frame(frame):
     return frame.f_back
+
+
+def get_caller_pathname_and_line():
+    frame = parent_frame(parent_frame(current_frame()))
+    return frame.f_code.co_filename, frame.f_lineno
