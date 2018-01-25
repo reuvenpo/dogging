@@ -503,7 +503,7 @@ class dog(object):
 
             # Allowed to run every time because the logger may change
             def build_logger_arg():
-                return {ARG_LOGGER: logger}
+                return {ARG_LOGGER: _logger}
 
             def build_time_arg():
                 return {ARG_TIME: end_time - start_time}
