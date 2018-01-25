@@ -5,6 +5,8 @@ the Python Language Specification, but does have implementation-specific APIs,
 which may differ across Python implementations and versions of those
 implementations.
 """
+import sys
+
 __all__ = [
     'get_format_arg_name_from_field_name',
     'iter_traceback',
@@ -49,3 +51,23 @@ def get_simplified_traceback(tb):
         for tb
         in iter_traceback(tb)
     ]
+
+
+# Modified from CPython27 logging.py:
+# next bit filched from 1.5.2's inspect.py
+def current_frame():
+    """Return the frame object for the caller's stack frame."""
+    try:
+        raise Exception
+    except:
+        return sys.exc_info()[2].tb_frame.f_back
+
+
+if hasattr(sys, '_getframe'):
+    def current_frame():
+        return sys._getframe(1)
+# done filching
+
+
+def parent_frame(frame):
+    return frame.f_back
