@@ -123,7 +123,7 @@ def separate_special_from_regular_arg_names(arg_names):
     )
 
 
-def check_special_format_arg_names_support(phase, arg_names, supported):
+def check_special_arg_names_support(phase, arg_names, supported):
     if arg_names and not arg_names <= supported:
         raise ValueError(
             'unsupported special arg-names for {!r} logging phase: {}'
@@ -327,9 +327,9 @@ class dog(object):
 
     def _validate_special_arg_names(self):
         # Check that each phases special-arg-names are suitable for the specific phase.
-        check_special_format_arg_names_support('enter', self._enter_special_arg_names, _ENTER_ARGS)
-        check_special_format_arg_names_support('exit', self._exit_special_arg_names, _EXIT_ARGS)
-        check_special_format_arg_names_support('error', self._error_special_arg_names, _ERROR_ARGS)
+        check_special_arg_names_support('enter', self._enter_special_arg_names, _ENTER_ARGS)
+        check_special_arg_names_support('exit', self._exit_special_arg_names, _EXIT_ARGS)
+        check_special_arg_names_support('error', self._error_special_arg_names, _ERROR_ARGS)
         if self._propagate and _ARG_RET in self._error_special_arg_names:
             raise ValueError('Can not use @ret in error message when allowing error propagation')
 
