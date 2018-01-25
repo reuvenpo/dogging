@@ -6,6 +6,7 @@ from functools import wraps
 from functools import partial
 from itertools import imap as map
 from itertools import chain
+from collections import Iterable
 import logging
 # Import the logging levels for user convenience
 from logging import DEBUG, INFO, WARN, WARNING, ERROR, FATAL, CRITICAL
@@ -69,13 +70,13 @@ _DEFAULT_LOGGER = '__logger__'
 
 
 def resolve_specification_string(spec):
-    return INFO, spec, None
+    return INFO, spec, ()
 
 
 def resolve_specification_sequence(spec):
     level = None
     format_string = None
-    extra = None
+    extras = []
 
     for part in spec:
         if isinstance(part, int):
@@ -83,18 +84,18 @@ def resolve_specification_sequence(spec):
         elif isinstance(part, basestring):
             format_string = part
         elif isinstance(part, ExtraAttributes):
-            extra = part
+            extras.append(part)
         else:
             raise TypeError('unsupported type for sequence specification')
 
     if format_string is None:
         raise ValueError('must specify a format string in a sequence specification')
 
-    return level, format_string, extra
+    return level, format_string, extras
 
 
 def resolve_specification_none(_):
-    return None, None, None
+    return None, None, ()
 
 
 SPEC_RESOLVERS = {
@@ -194,11 +195,11 @@ class ExtraAttributes(object):
 
 class dog(object):
     __slots__ = (
-        '_enter_level', '_enter_format', '_enter_extra',
+        '_enter_level', '_enter_format', '_enter_extras',
         '_enter_special_arg_names', '_enter_regular_arg_names',
-        '_exit_level', '_exit_format', '_exit_extra',
+        '_exit_level', '_exit_format', '_exit_extras',
         '_exit_special_arg_names', '_exit_regular_arg_names',
-        '_error_level', '_error_format', '_error_extra',
+        '_error_level', '_error_format', '_error_extras',
         '_error_special_arg_names', '_error_regular_arg_names',
         'logger', '_catch', '_propagate', '_exc_info',
         '_default_ret', '_default_ret_arg',
@@ -207,7 +208,7 @@ class dog(object):
     def __init__(
         self,
         enter=None, exit=None, error=None,
-        extra=None,
+        extras=None,
         logger=None,
         catch=Exception, propagate_exception=True,
         exc_info=False, default_ret=None
@@ -221,9 +222,9 @@ class dog(object):
         self._exit_format = None
         self._error_format = None
 
-        self._enter_extra = None
-        self._exit_extra = None
-        self._error_extra = None
+        self._enter_extras = None
+        self._exit_extras = None
+        self._error_extras = None
 
         self._enter_special_arg_names = None
         self._exit_special_arg_names = None
@@ -245,30 +246,33 @@ class dog(object):
         else:
             self._default_ret_arg = {_ARG_RET: self._default_ret}
 
-        self._set_extra(extra)
+        self._set_extras(extras)
         self._resolve_specifications(enter, exit, error)
         self._parse_format_strings()
         self._validate_special_arg_names()
 
-    def _set_extra(self, extra):
-        self._enter_extra = extra
-        self._exit_extra = extra
-        self._error_extra = extra
+    def _set_extras(self, extras):
+        if not isinstance(extras, Iterable):
+            raise TypeError('extras argument must be an iterable')
+        extras = tuple(extras)
+        self._enter_extras = extras
+        self._exit_extras = extras
+        self._error_extras = extras
 
-    def _override_extras(self, enter, exit, error):
+    def _add_extras(self, enter, exit, error):
         if enter:
-            self._enter_extra = enter
+            self._enter_extras = tuple(chain(self._enter_extras, enter))
         if exit:
-            self._exit_extra = exit
+            self._exit_extras = tuple(chain(self._exit_extras, exit))
         if error:
-            self._error_extra = error
+            self._error_extras = tuple(chain(self._error_extras, error))
 
     def _resolve_specifications(self, enter, exit, error):
         self._enter_level, self._enter_format, enter_extra = resolve_specification(enter)
         self._exit_level, self._exit_format, exit_extra = resolve_specification(exit)
         self._error_level, self._error_format, error_extra = resolve_specification(error)
 
-        self._override_extras(enter_extra, exit_extra, error_extra)
+        self._add_extras(enter_extra, exit_extra, error_extra)
 
     @staticmethod
     def _get_format_arg_names(fmt):
@@ -289,12 +293,21 @@ class dog(object):
                 check_format_arg_names_no_positional(arg_names)
 
         # Add references from extra parameters to arg_name lists
-        if self._enter_extra:
-            enter_arg_names = chain(enter_arg_names, self._enter_extra.__args__)
-        if self._exit_extra:
-            exit_arg_names = chain(exit_arg_names, self._exit_extra.__args__)
-        if self._error_extra:
-            error_arg_names = chain(error_arg_names, self._error_extra.__args__)
+        if self._enter_extras:
+            enter_arg_names = chain(
+                enter_arg_names,
+                chain.from_iterable(extra.__args__ for extra in self._enter_extras)
+            )
+        if self._exit_extras:
+            exit_arg_names = chain(
+                exit_arg_names,
+                chain.from_iterable(extra.__args__ for extra in self._exit_extras)
+            )
+        if self._error_extras:
+            error_arg_names = chain(
+                error_arg_names,
+                chain.from_iterable(extra.__args__ for extra in self._error_extras)
+            )
 
         return enter_arg_names, exit_arg_names, error_arg_names
 
@@ -394,13 +407,13 @@ class dog(object):
         default_ret = self._default_ret
         enter_level = self._enter_level
         enter_format = self._enter_format
-        enter_extra = self._enter_extra
+        enter_extras = self._enter_extras
         exit_level = self._exit_level
         exit_format = self._exit_format
-        exit_extra = self._exit_extra
+        exit_extras = self._exit_extras
         error_level = self._error_level
         error_format = self._error_format
-        error_extra = self._error_extra
+        error_extras = self._error_extras
 
         # Check which phases are required
         need_log_enter = self._enter_format is not None
@@ -452,9 +465,9 @@ class dog(object):
             start_time = None
             end_time = None
             logger = self._get_logger(wrapped_func)
-            log_enter = _partial(log, logger, enter_level, enter_format, enter_extra)
-            log_exit = _partial(log, logger, exit_level, exit_format, exit_extra)
-            log_error = _partial(log, logger, error_level, error_format, error_extra)
+            log_enter = _partial(log, logger, enter_level, enter_format, enter_extras)
+            log_exit = _partial(log, logger, exit_level, exit_format, exit_extras)
+            log_error = _partial(log, logger, error_level, error_format, error_extras)
 
             @run_once
             def build_func_arguments_args():
@@ -597,9 +610,6 @@ class dog(object):
                 self._error_format,
             ))
 
-        if self._extra is not None:
-            arguments.append('extra={!r}'.format(self._extra))
-
         if self.logger != _DEFAULT_LOGGER:
             arguments.append('logger={!r}'.format(self.logger))
 
@@ -629,7 +639,7 @@ class dog(object):
         else:
             return logger
 
-    def _log(self, logger, level, message, extra, builders):
+    def _log(self, logger, level, message, extras, builders):
         @run_once
         def builder():
             arguments = {}
@@ -637,7 +647,25 @@ class dog(object):
                 arguments.update(build())
             return arguments
 
-        extra = extra(builder) if extra else None
+        if extras:
+            # ``extras`` is a sequence of ``ExtraAttributes`` subclasses.
+            # The methods of those classes are used to generate attributes
+            #  used by the logging.Formatter.
+            # We allow specifying multiple such classes, but if any of
+            #  their methods conflict, the methods of classes later in
+            #  the sequence should override those earlier in the sequence.
+            # The most concise and (probably) efficient way of implementing
+            #  this, is by using the sequence of classes as the bases of
+            #  another class, in reverse order.
+            # This also handles any multiple inheritance the user may have
+            #  specified really gracefully.
+            # If you understood what i was doing here without
+            #  reading this comment or reading the docs, congrats,
+            #  you are a Master of the Dark Arts.
+            extras = type('AllExtras', tuple(reversed(extras)), {})
+            extra = extras(builder)  # Instantiate the class
+        else:
+            extra = None
 
         logger.log(
             level,
