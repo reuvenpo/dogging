@@ -574,7 +574,7 @@ class dog(object):
                     # So that's why we make this more complicated.
                     if error_needs_traceback_arg:
                         # The first part is this frame so we cut it off
-                        simplified_tb = _get_simplified_traceback(tb.tb_next)
+                        simplified_tb = _get_simplified_traceback(next_traceback(tb))
 
                         def build_traceback_arg():
                             return {ARG_TRACEBACK: simplified_tb}
@@ -618,7 +618,7 @@ class dog(object):
                 if propagate:
                     # Elide this frame from the traceback
                     # https://stackoverflow.com/questions/44813333/
-                    raise t, v, tb.tb_next
+                    raise t, v, next_traceback(tb)
                 ret = default_ret
             finally:
                 del tb
