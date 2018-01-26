@@ -9,6 +9,7 @@ import sys
 
 __all__ = [
     'get_format_arg_name_from_field_name',
+    'next_traceback',
     'iter_traceback',
     'get_simplified_traceback',
     'get_caller_pathname_and_line',
@@ -34,6 +35,10 @@ def get_format_arg_name_from_field_name(field_name):
     for _ in rest:
         pass
     return arg_name
+
+
+def next_traceback(tb):
+    return tb.tb_next
 
 
 def iter_traceback(tb):
