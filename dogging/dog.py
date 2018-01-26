@@ -82,7 +82,7 @@ def resolve_specification_string(spec):
 
 
 def resolve_specification_sequence(spec):
-    level = None
+    level = INFO
     format_string = None
     extras = []
 
