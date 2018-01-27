@@ -234,7 +234,7 @@ class dog(object):
     def __init__(
         self,
         enter=None, exit=None, error=None,
-        extras=None,
+        extras=(),
         logger=None,
         catch=Exception, propagate_exception=True,
         exc_info=False, default_ret=None
@@ -272,26 +272,29 @@ class dog(object):
         else:
             self._default_ret_arg = {_ARG_RET: self._default_ret}
 
-        self._set_extras(extras)
+        self._set_extras_for_all_phases(extras)
         self._resolve_specifications(enter, exit, error)
         self._parse_format_strings()
         self._validate_special_arg_names()
 
-    def _set_extras(self, extras):
+    def _set_extras_for_all_phases(self, extras):
         if not isinstance(extras, Iterable):
             raise TypeError('extras argument must be an iterable')
-        extras = tuple(extras)
+        extras = join_extra_attributes(tuple(extras))
         self._enter_extras = extras
         self._exit_extras = extras
         self._error_extras = extras
 
     def _add_extras(self, enter, exit, error):
         if enter:
-            self._enter_extras = tuple(chain(self._enter_extras, enter))
+            enter = tuple(chain((self._enter_extras,), enter))
+            self._enter_extras = join_extra_attributes(enter)
         if exit:
-            self._exit_extras = tuple(chain(self._exit_extras, exit))
+            exit = tuple(chain((self._exit_extras,), exit))
+            self._exit_extras = join_extra_attributes(exit)
         if error:
-            self._error_extras = tuple(chain(self._error_extras, error))
+            error = tuple(chain((self._error_extras,), error))
+            self._error_extras = join_extra_attributes(error)
 
     def _resolve_specifications(self, enter, exit, error):
         self._enter_level, self._enter_format, enter_extra = resolve_specification(enter)
@@ -725,7 +728,6 @@ class dog(object):
             return arguments
 
         if extras:
-            extras = join_extra_attributes(extras)
             extra = extras(builder)  # Instantiate the class
         else:
             extra = None
