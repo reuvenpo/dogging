@@ -209,7 +209,7 @@ class ExtraAttributes(DynamicAttributesBase):
      by the dog, their dictionaries will be updated with attributes whose names
      match the names of your methods, and whose values equal the return values
      from your methods.
-    Your methods will be called every time a LogRecord is generated.
+    All your methods will be called every time a LogRecord is generated.
     """
     pass
 
