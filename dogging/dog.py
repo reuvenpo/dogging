@@ -286,15 +286,15 @@ class dog(object):
         self._error_extras = extras
 
     def _add_extras(self, enter, exit, error):
+        def join_extras(cls, more_classes):
+            return join_extra_attributes(tuple(chain((cls,), more_classes)))
+
         if enter:
-            enter = tuple(chain((self._enter_extras,), enter))
-            self._enter_extras = join_extra_attributes(enter)
+            self._enter_extras = join_extras(self._enter_extras, enter)
         if exit:
-            exit = tuple(chain((self._exit_extras,), exit))
-            self._exit_extras = join_extra_attributes(exit)
+            self._exit_extras = join_extras(self._exit_extras, exit)
         if error:
-            error = tuple(chain((self._error_extras,), error))
-            self._error_extras = join_extra_attributes(error)
+            self._error_extras = join_extras(self._error_extras, error)
 
     def _resolve_specifications(self, enter, exit, error):
         self._enter_level, self._enter_format, enter_extra = resolve_specification(enter)
