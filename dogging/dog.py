@@ -320,22 +320,19 @@ class dog(object):
             if arg_names:
                 check_format_arg_names_no_positional(arg_names)
 
+        def chain_arg_names_with_extra_args(arg_names, extras):
+            return chain(
+                arg_names,
+                chain.from_iterable(extra.__args__ for extra in extras)
+            )
+
         # Add references from extra parameters to arg_name lists
         if self._enter_extras:
-            enter_arg_names = chain(
-                enter_arg_names,
-                chain.from_iterable(extra.__args__ for extra in self._enter_extras)
-            )
+            enter_arg_names = chain_arg_names_with_extra_args(enter_arg_names, self._enter_extras)
         if self._exit_extras:
-            exit_arg_names = chain(
-                exit_arg_names,
-                chain.from_iterable(extra.__args__ for extra in self._exit_extras)
-            )
+            exit_arg_names = chain_arg_names_with_extra_args(exit_arg_names, self._exit_extras)
         if self._error_extras:
-            error_arg_names = chain(
-                error_arg_names,
-                chain.from_iterable(extra.__args__ for extra in self._error_extras)
-            )
+            error_arg_names = chain_arg_names_with_extra_args(error_arg_names, self._error_extras)
 
         return enter_arg_names, exit_arg_names, error_arg_names
 
