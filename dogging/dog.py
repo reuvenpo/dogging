@@ -710,7 +710,7 @@ class dog(object):
                 self._error_format,
             ))
 
-        if self.logger != _DEFAULT_LOGGER:
+        if self.logger is not None:
             arguments.append('logger={!r}'.format(self.logger))
 
         if self._catch is not StandardError:
