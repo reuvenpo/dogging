@@ -303,19 +303,18 @@ class dog(object):
 
         self._add_extras(enter_extra, exit_extra, error_extra)
 
-    @staticmethod
-    def _get_format_arg_names(fmt):
-        return (
-            get_format_arg_names(fmt)
-            if fmt is not None
-            else ()
-        )
-
     def _get_phases_arg_names(self):
+        def _get_format_arg_names(fmt):
+            return (
+                get_format_arg_names(fmt)
+                if fmt is not None
+                else ()
+            )
+
         # Extract the arg names from the replacement fields in the format string
-        enter_arg_names = self._get_format_arg_names(self._enter_format)
-        exit_arg_names = self._get_format_arg_names(self._exit_format)
-        error_arg_names = self._get_format_arg_names(self._error_format)
+        enter_arg_names = _get_format_arg_names(self._enter_format)
+        exit_arg_names = _get_format_arg_names(self._exit_format)
+        error_arg_names = _get_format_arg_names(self._error_format)
         # Check the format strings are valid
         for arg_names in (enter_arg_names, exit_arg_names, error_arg_names):
             if arg_names:
