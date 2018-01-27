@@ -332,7 +332,12 @@ class dog(object):
         def chain_arg_names_with_extra_args(arg_names, extras):
             return chain(
                 arg_names,
-                chain.from_iterable(extra.__args__ for extra in extras)
+                chain.from_iterable(
+                    extra.__args__
+                    for extra
+                    in extras.mro()
+                    if hasattr(extra, '__args__')
+                )
             )
 
         # Add references from extra parameters to arg_name lists
