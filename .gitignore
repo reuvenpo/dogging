@@ -7,3 +7,7 @@ dist/
 .eggs/
 *.whl
 */VERSION
+
+
+# testing artifacts
+.pytest_cache
