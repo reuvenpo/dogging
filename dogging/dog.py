@@ -5,6 +5,7 @@ from inspect import getargspec
 from functools import wraps
 from functools import partial
 from itertools import imap as map
+from itertools import izip as zip
 from itertools import chain
 from collections import Iterable
 import logging
@@ -28,6 +29,11 @@ WARNING = WARNING
 ERROR = ERROR
 FATAL = FATAL
 CRITICAL = CRITICAL
+
+_ENTER = 0
+_EXIT = 1
+_ERROR = 2
+_PHASES = [_ENTER, _EXIT, _ERROR]
 
 _COMPUTED_ARG_PREFIX = '>'  # Common prefix for computed format arg-names
 _SPECIAL_ARG_PREFIX = '@'  # Common prefix for special format arg-names
@@ -276,15 +282,13 @@ def iter_dynamic_attribute_requested_arg_names(dynamic_attributes):
 
 class dog(object):
     __slots__ = (
-        '_enter_level', '_enter_format', '_enter_extras',
-        '_enter_computer', '_enter_computed_arg_names',
-        '_enter_special_arg_names', '_enter_regular_arg_names',
-        '_exit_level', '_exit_format', '_exit_extras',
-        '_exit_computer', '_exit_computed_arg_names',
-        '_exit_special_arg_names', '_exit_regular_arg_names',
-        '_error_level', '_error_format', '_error_extras',
-        '_error_computer', '_error_computed_arg_names',
-        '_error_special_arg_names', '_error_regular_arg_names',
+        '_phase_level',
+        '_phase_format',
+        '_phase_extras',
+        '_phase_computer',
+        '_phase_computed_arg_names',
+        '_phase_special_arg_names',
+        '_phase_regular_arg_names',
         'logger', '_catch', '_propagate', '_exc_info',
         '_default_ret', '_default_ret_arg',
     )
@@ -298,33 +302,13 @@ class dog(object):
         exc_info=False, default_ret=None
     ):
         # Set empty values as default
-        self._enter_level = None
-        self._exit_level = None
-        self._error_level = None
-
-        self._enter_format = None
-        self._exit_format = None
-        self._error_format = None
-
-        self._enter_extras = None
-        self._exit_extras = None
-        self._error_extras = None
-
-        self._enter_computer = None
-        self._exit_computer = None
-        self._error_computer = None
-
-        self._enter_computed_arg_names = None
-        self._exit_computed_arg_names = None
-        self._error_computed_arg_names = None
-
-        self._enter_special_arg_names = None
-        self._exit_special_arg_names = None
-        self._error_special_arg_names = None
-
-        self._enter_regular_arg_names = None
-        self._exit_regular_arg_names = None
-        self._error_regular_arg_names = None
+        self._phase_level = [None, None, None]
+        self._phase_format = [None, None, None]
+        self._phase_extras = [None, None, None]
+        self._phase_computer = [None, None, None]
+        self._phase_computed_arg_names = [None, None, None]
+        self._phase_special_arg_names = [None, None, None]
+        self._phase_regular_arg_names = [None, None, None]
 
         # Simple attributes
         self.logger = logger
@@ -349,81 +333,67 @@ class dog(object):
         if not isinstance(extras, Iterable):
             raise TypeError('extras argument must be an iterable')
         extras = join_dynamic_attributes(tuple(extras))
-        self._enter_extras = extras
-        self._exit_extras = extras
-        self._error_extras = extras
+        for phase in _PHASES:
+            self._phase_extras[phase] = extras
 
     def _add_extras(self, enter, exit, error):
         def join_extras(cls, more_classes):
             return join_dynamic_attributes(tuple(chain((cls,), more_classes)))
 
-        if enter:
-            if self._enter_extras:
-                self._enter_extras = join_extras(self._enter_extras, enter)
-            else:
-                self._enter_extras = join_dynamic_attributes(tuple(enter))
-        if exit:
-            if self._exit_extras:
-                self._exit_extras = join_extras(self._exit_extras, exit)
-            else:
-                self._exit_extras = join_dynamic_attributes(tuple(exit))
-        if error:
-            if self._error_extras:
-                self._error_extras = join_extras(self._error_extras, error)
-            else:
-                self._error_extras = join_dynamic_attributes(tuple(error))
+        for phase, extras in zip(_PHASES, (enter, exit, error)):
+            if extras:
+                if self._phase_extras[phase]:
+                    self._phase_extras[phase] = join_extras(self._phase_extras[phase], extras)
+                else:
+                    self._phase_extras[phase] = join_dynamic_attributes(tuple(extras))
 
     def _resolve_specifications(self, enter, exit, error):
-        self._enter_level, self._enter_format, enter_extra, enter_computers = resolve_specification(enter)
-        self._exit_level, self._exit_format, exit_extra, exit_computers = resolve_specification(exit)
-        self._error_level, self._error_format, error_extra, error_computers = resolve_specification(error)
+        phase_extras = [None, None, None]
+        phase_computers = [None, None, None]
+        for phase, specification in zip(_PHASES, (enter, exit, error)):
+            self._phase_level[phase], self._phase_format[phase], extras, computers = resolve_specification(specification)
+            phase_extras[phase] = extras
+            phase_computers[phase] = computers
 
-        self._add_extras(enter_extra, exit_extra, error_extra)
+        self._add_extras(*phase_extras)
 
-        self._enter_computer = join_dynamic_attributes(enter_computers) if enter_computers else None
-        self._exit_computer = join_dynamic_attributes(exit_computers) if exit_computers else None
-        self._error_computer = join_dynamic_attributes(error_computers) if error_computers else None
+        for phase, computers in zip(_PHASES, phase_computers):
+            if computers:
+                self._phase_computer[phase] = join_dynamic_attributes(computers)
 
     def _get_phases_arg_names(self):
-        def _get_format_arg_names(fmt):
+        def _get_format_arg_names(_fmt):
             return (
-                get_format_arg_names(fmt)
-                if fmt is not None
+                get_format_arg_names(_fmt)
+                if _fmt is not None
                 else ()
             )
 
+        phase_arg_names = [None, None, None]
+
         # Extract the arg names from the replacement fields in the format string
-        enter_arg_names = _get_format_arg_names(self._enter_format)
-        exit_arg_names = _get_format_arg_names(self._exit_format)
-        error_arg_names = _get_format_arg_names(self._error_format)
+        for phase, fmt in zip(_PHASES, self._phase_format):
+            phase_arg_names[phase] = _get_format_arg_names(fmt)
         # Check the format strings are valid
-        for arg_names in (enter_arg_names, exit_arg_names, error_arg_names):
+        for arg_names in phase_arg_names:
             if arg_names:
                 check_format_arg_names_no_positional(arg_names)
 
-        def chain_arg_names_with_dynamic_attributes_arg_names(arg_names, dynamic_attributes):
+        def chain_arg_names_with_dynamic_attributes_arg_names(_arg_names, dynamic_attributes):
             return chain(
-                arg_names,
+                _arg_names,
                 iter_dynamic_attribute_requested_arg_names(dynamic_attributes),
             )
 
-        # Add references from extra parameters to arg_name lists
-        if self._enter_extras:
-            enter_arg_names = chain_arg_names_with_dynamic_attributes_arg_names(enter_arg_names, self._enter_extras)
-        if self._exit_extras:
-            exit_arg_names = chain_arg_names_with_dynamic_attributes_arg_names(exit_arg_names, self._exit_extras)
-        if self._error_extras:
-            error_arg_names = chain_arg_names_with_dynamic_attributes_arg_names(error_arg_names, self._error_extras)
+        for phase, extras, computers in zip(_PHASES, self._phase_extras, self._phase_computer):
+            # Add references from extra parameters to arg_name lists
+            if extras:
+                phase_arg_names[phase] = chain_arg_names_with_dynamic_attributes_arg_names(phase_arg_names[phase], extras)
+            # Add references from computed arg names to arg_names lists
+            if computers:
+                phase_arg_names[phase] = chain_arg_names_with_dynamic_attributes_arg_names(phase_arg_names[phase], computers)
 
-        # Add references from computed arg names to arg_names lists
-        if self._enter_computer:
-            enter_arg_names = chain_arg_names_with_dynamic_attributes_arg_names(enter_arg_names, self._enter_computer)
-        if self._exit_computer:
-            exit_arg_names = chain_arg_names_with_dynamic_attributes_arg_names(exit_arg_names, self._exit_computer)
-        if self._error_computer:
-            error_arg_names = chain_arg_names_with_dynamic_attributes_arg_names(error_arg_names, self._error_computer)
-
-        return enter_arg_names, exit_arg_names, error_arg_names
+        return phase_arg_names
 
     def _separate_phase_arg_names_to_categories(
         self,
@@ -433,28 +403,21 @@ class dog(object):
         # Also collect the regular references to check them when wrapping a function.
         three_frozen_sets = (frozenset(),) * 3
 
-        def separate_arg_names(fmt, arg_names):
+        def separate_arg_names(fmt, _arg_names):
             if fmt is None:
                 return three_frozen_sets
-            computed, arg_names = (
-                map(frozenset, separate_computed_arg_names(arg_names))
+            computed, _arg_names = (
+                map(frozenset, separate_computed_arg_names(_arg_names))
             )
             special, regular = (
-                map(frozenset, separate_special_arg_names(arg_names))
+                map(frozenset, separate_special_arg_names(_arg_names))
             )
             return computed, special, regular
 
-        self._enter_computed_arg_names, self._enter_special_arg_names, self._enter_regular_arg_names = (
-            separate_arg_names(self._enter_format, enter_arg_names)
-        )
-
-        self._exit_computed_arg_names, self._exit_special_arg_names, self._exit_regular_arg_names = (
-            separate_arg_names(self._exit_format, exit_arg_names)
-        )
-
-        self._error_computed_arg_names, self._error_special_arg_names, self._error_regular_arg_names = (
-            separate_arg_names(self._error_format, error_arg_names)
-        )
+        for phase, arg_names in zip(_PHASES, (enter_arg_names, exit_arg_names, error_arg_names)):
+            self._phase_computed_arg_names[phase], self._phase_special_arg_names[phase], self._phase_regular_arg_names[phase] = (
+                separate_arg_names(self._phase_format[phase], arg_names)
+            )
 
     def _parse_format_strings(self):
         per_phase_arg_names = self._get_phases_arg_names()
@@ -462,18 +425,19 @@ class dog(object):
 
     def _validate_special_arg_names(self):
         # Check that each phases special-arg-names are suitable for the specific phase.
-        check_special_arg_names_support('enter', self._enter_special_arg_names, _ENTER_ARGS)
-        check_special_arg_names_support('exit', self._exit_special_arg_names, _EXIT_ARGS)
-        check_special_arg_names_support('error', self._error_special_arg_names, _ERROR_ARGS)
-        if self._propagate and _ARG_RET in self._error_special_arg_names:
+        for phase, phase_name, supported_special in zip(
+            _PHASES,
+            ('enter', 'exit', 'error'),
+            (_ENTER_ARGS, _EXIT_ARGS, _ERROR_ARGS)
+        ):
+            check_special_arg_names_support(phase_name, self._phase_special_arg_names[phase], supported_special)
+
+        # Special case
+        if self._propagate and _ARG_RET in self._phase_special_arg_names[_ERROR]:
             raise ValueError('Can not use @ret in error message when allowing error propagation')
 
     def _validate_computed_arg_names(self):
-        for arg_names, computer in (
-            (self._enter_computed_arg_names, self._enter_computer),
-            (self._exit_computed_arg_names, self._exit_computer),
-            (self._error_computed_arg_names, self._error_computer),
-        ):
+        for arg_names, computer in zip(self._phase_computed_arg_names, self._phase_computer):
             if any(
                 arg_name[1] == '_'  # arg_name[0] == _COMPUTED_ARG_PREFIX
                 for arg_name
@@ -502,11 +466,7 @@ class dog(object):
 
         unrecognized_arg_names = set()
 
-        for regular_phase_arg_names in (
-            self._enter_regular_arg_names,
-            self._exit_regular_arg_names,
-            self._error_regular_arg_names
-        ):
+        for regular_phase_arg_names in self._phase_regular_arg_names:  # type: set
             if regular_phase_arg_names and not regular_phase_arg_names <= func_args:
                 unrecognized_arg_names |= (regular_phase_arg_names - func_args)
 
@@ -546,41 +506,41 @@ class dog(object):
         catch = self._catch
         propagate = self._propagate
         default_ret = self._default_ret
-        enter_level = self._enter_level
-        enter_format = self._enter_format
-        enter_extras = self._enter_extras
-        enter_computer = self._enter_computer
-        enter_computed_arg_names = self._enter_computed_arg_names
-        exit_level = self._exit_level
-        exit_format = self._exit_format
-        exit_extras = self._exit_extras
-        exit_computer = self._exit_computer
-        exit_computed_arg_names = self._exit_computed_arg_names
-        error_level = self._error_level
-        error_format = self._error_format
-        error_extras = self._error_extras
-        error_computer = self._error_computer
-        error_computed_arg_names = self._error_computed_arg_names
+        enter_level = self._phase_level[_ENTER]
+        enter_format = self._phase_format[_ENTER]
+        enter_extras = self._phase_extras[_ENTER]
+        enter_computer = self._phase_computer[_ENTER]
+        enter_computed_arg_names = self._phase_computed_arg_names[_ENTER]
+        exit_level = self._phase_level[_EXIT]
+        exit_format = self._phase_format[_EXIT]
+        exit_extras = self._phase_extras[_EXIT]
+        exit_computer = self._phase_computer[_EXIT]
+        exit_computed_arg_names = self._phase_computed_arg_names[_EXIT]
+        error_level = self._phase_level[_ERROR]
+        error_format = self._phase_format[_ERROR]
+        error_extras = self._phase_extras[_ERROR]
+        error_computer = self._phase_computer[_ERROR]
+        error_computed_arg_names = self._phase_computed_arg_names[_ERROR]
 
         # Check which phases are required
-        need_log_enter = self._enter_format is not None
-        need_log_exit = self._exit_format is not None
-        need_log_error = self._error_format is not None
+        need_log_enter = self._phase_format[_ENTER] is not None
+        need_log_exit = self._phase_format[_EXIT] is not None
+        need_log_error = self._phase_format[_ERROR] is not None
 
         # Check which phases require regular arguments
-        enter_needs_func_arguments = bool(self._enter_regular_arg_names)
-        exit_needs_func_arguments = bool(self._exit_regular_arg_names)
-        error_needs_func_arguments = bool(self._error_regular_arg_names)
+        enter_needs_func_arguments = bool(self._phase_regular_arg_names[_ENTER])
+        exit_needs_func_arguments = bool(self._phase_regular_arg_names[_EXIT])
+        error_needs_func_arguments = bool(self._phase_regular_arg_names[_ERROR])
 
         # Check which special arg-names are required by the enter phase
-        enter_special_arg_names = self._enter_special_arg_names
+        enter_special_arg_names = self._phase_special_arg_names[_ENTER]
         enter_needs_pathname_arg = ARG_PATHNAME in enter_special_arg_names
         enter_needs_line_arg = ARG_LINE in enter_special_arg_names
         enter_needs_logger_arg = ARG_LOGGER in enter_special_arg_names
         enter_needs_func_arg = ARG_FUNC in enter_special_arg_names
 
         # Check which special arg-names are required by the exit phase
-        exit_special_arg_names = self._exit_special_arg_names
+        exit_special_arg_names = self._phase_special_arg_names[_EXIT]
         exit_needs_pathname_arg = ARG_PATHNAME in exit_special_arg_names
         exit_needs_line_arg = ARG_LINE in exit_special_arg_names
         exit_needs_logger_arg = ARG_LOGGER in exit_special_arg_names
@@ -589,7 +549,7 @@ class dog(object):
         exit_needs_return_arg = ARG_RET in exit_special_arg_names
 
         # Check which special arg-names are required by the error phase
-        error_special_arg_names = self._error_special_arg_names
+        error_special_arg_names = self._phase_special_arg_names[_ERROR]
         error_needs_pathname_arg = ARG_PATHNAME in error_special_arg_names
         error_needs_line_arg = ARG_LINE in error_special_arg_names
         error_needs_logger_arg = ARG_LOGGER in error_special_arg_names
@@ -788,20 +748,20 @@ class dog(object):
     def __repr__(self):
         arguments = []
 
-        if self._enter_format:
+        if self._phase_format[_ENTER]:
             arguments.append('enter=({}, {!r})'.format(
-                logging.getLevelName(self._enter_level),
-                self._enter_format,
+                logging.getLevelName(self._phase_level[_ENTER]),
+                self._phase_format[_ENTER],
             ))
-        if self._exit_format:
+        if self._phase_format[_EXIT]:
             arguments.append('exit=({}, {!r})'.format(
-                logging.getLevelName(self._exit_level),
-                self._exit_format,
+                logging.getLevelName(self._phase_level[_EXIT]),
+                self._phase_format[_EXIT],
             ))
-        if self._error_format:
+        if self._phase_format[_ERROR]:
             arguments.append('error=({}, {!r})'.format(
-                logging.getLevelName(self._error_level),
-                self._error_format,
+                logging.getLevelName(self._phase_level[_ERROR]),
+                self._phase_format[_ERROR],
             ))
 
         if self.logger is not None:
