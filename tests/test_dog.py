@@ -199,6 +199,67 @@ class StoppedErrorPropagationTestCase(DogTestBaseMixin, unittest.TestCase):
         )
 
 
+# Tests for broken format strings:
+
+
+class BrokenFormatStringMixin(DogTestPhasesMixin):
+    """Base class for test cases where dog initialisation should fail because of a bad format string.
+
+    Subclasses need only to define the message that is considered incorrect as
+    the ``message`` class attribute. The ``bar`` arg name should be used as
+    the arg name. This arg name refers to a real parameter of the decorated
+    function, which means that if the format string is somehow deemed correct,
+    an error **will not** be raised because the arg-name could not be
+    recognised.
+    """
+    message = None
+
+    enter_init_fails = True
+    exit_init_fails = True
+    error_init_fails = True
+    enter_init_fail_exception = ValueError
+    exit_init_fail_exception = ValueError
+    error_init_fail_exception = ValueError
+
+    def get_function(self, work):
+        def foo(bar):
+            return work()
+        return foo
+
+    def setUp(self):
+        """
+        :type self: BrokenFormatStringMixin | unittest.TestCase
+        """
+        super(BrokenFormatStringMixin, self).setUp()
+        self.enter_message = self.message
+        self.exit_message = self.message
+        self.error_message = self.message
+
+
+class FormatStringMissingClosingCurlyTestCase(BrokenFormatStringMixin, unittest.TestCase):
+    message = 'abc {bar def'
+
+
+class FormatStringMissingOpeningCurlyTestCase(BrokenFormatStringMixin, unittest.TestCase):
+    message = 'abc bar} def'
+
+
+class FormatStringMissingClosingSquareTestCase(BrokenFormatStringMixin, unittest.TestCase):
+    message = 'abc {bar[} def'
+
+
+class FormatStringEmptyAttributeTestCase(BrokenFormatStringMixin, unittest.TestCase):
+    message = 'abc {bar.} def'
+
+
+class FormatStringEmptyConversionTestCase(BrokenFormatStringMixin, unittest.TestCase):
+    message = 'abc {bar!} def'
+
+
+class FormatStringIncorrectConversionTestCase(BrokenFormatStringMixin, unittest.TestCase):
+    message = 'abc {bar!x} def'
+
+
 # Tests for simple messages with no references:
 
 
