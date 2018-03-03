@@ -138,9 +138,9 @@ There are several such, so called "special arg names" you have access to:
 name        enter  exit error     description
 ==========  =====  ==== ========= ===========
 @pathname   O      O    O         The name of the file where the function was
-                                  **decorated**.
+                                  **defined**.
 @line       O      O    O         The line in the file where the function was
-                                  **decorated**.
+                                  **defined**.
 @logger     O      O    O         The logger used for logging.
 @func       O      O    O         The function *object*. Use ``@func.__name__``
                                   To reference its name.
