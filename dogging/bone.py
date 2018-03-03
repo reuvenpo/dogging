@@ -29,11 +29,16 @@ except ImportError:
         return field_name._formatter_field_name_split()
 
 
+def consume(it):
+    """Consume an iterator and discard the results."""
+    for _ in it:
+        pass
+
+
 def get_format_arg_name_from_field_name(field_name):
     arg_name, rest = formatter_field_name_split(field_name)
     # Parse all of the field-name parts for format validation
-    for _ in rest:
-        pass
+    consume(rest)
     return arg_name
 
 
