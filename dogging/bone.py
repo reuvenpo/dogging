@@ -12,7 +12,7 @@ __all__ = [
     'next_traceback',
     'iter_traceback',
     'get_simplified_traceback',
-    'get_caller_pathname_and_line',
+    'get_func_pathname_and_line',
 ]
 
 
@@ -79,6 +79,6 @@ def parent_frame(frame):
     return frame.f_back
 
 
-def get_caller_pathname_and_line():
-    frame = parent_frame(parent_frame(current_frame()))
-    return frame.f_code.co_filename, frame.f_lineno
+def get_func_pathname_and_line(func):
+    code = func.func_code
+    return code.co_filename, code.co_firstlineno

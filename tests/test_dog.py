@@ -532,13 +532,15 @@ class PathnameSpecialArgNameTestCase(DogTestPhasesSpecialArgNamesMixin, unittest
     """Test that logging phases can access the @pathname special arg-name."""
     arg_name = 'pathname'
 
-    # Force decoration to happen in this file
-    def decorate_function(self, decorator, func):
-        return decorator(func)
+    # Force function definition to happen in this file
+    def get_function(self, work):
+        def foo():
+            return work()
+        return foo
 
     def check_enter_message(self, message):
-        # cut off the filename extension because it chaneges from '.py'
-        # in some implementations. (Looking at you, CPyth
+        # cut off the filename extension because it changes from '.py'
+        # in some implementations. (Looking at you, CPython)
         self.assertEqual(
             os.path.splitext(__file__)[0],
             os.path.splitext(message)[0],
@@ -575,14 +577,15 @@ class LineSpecialArgNameTestCase(DogTestPhasesSpecialArgNamesMixin, unittest.Tes
     """Test that logging phases can access the @line special arg-name."""
     arg_name = 'line'
 
-    # Control the line where the decoration happens
-    def decorate_function(self, decorator, func):
-        self.decoration_line = get_this_line_number() + 2
-
-        return decorator(func)
+    # Control the line where the function is defined
+    def get_function(self, work):
+        def foo():
+            return work()
+        return foo
+    definition_line = get_this_line_number() - 3
 
     def check_enter_message(self, message):
-        self.assertEqual(str(self.decoration_line), message)
+        self.assertEqual(str(self.definition_line), message)
 
     check_exit_message = check_enter_message
     check_error_message = check_enter_message

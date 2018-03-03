@@ -566,7 +566,7 @@ class dog(object):
 
         needs_time_arg = exit_needs_time_arg or error_needs_time_arg
 
-        pathname, line = get_caller_pathname_and_line()
+        pathname, line = get_func_pathname_and_line(wrapped_func)
 
         # These builders always return the same value throughout the
         # lifetime of ``func``:
