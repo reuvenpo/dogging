@@ -1,14 +1,14 @@
 *.py[cod]
 
 # build artifacts
-build/
-dist/
-*.egg-info/
-.eggs/
-*.whl
-*/VERSION
-README.html
+/build/
+/dist/
+/*.egg-info/
+/.eggs/
+/*.whl
+/*/VERSION
+/README.html
 
 
 # testing artifacts
-.pytest_cache
+/.pytest_cache
