@@ -8,6 +8,7 @@
 /*.whl
 /*/VERSION
 /README.html
+/docs/build/
 
 
 # testing artifacts
