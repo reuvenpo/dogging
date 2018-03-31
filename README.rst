@@ -5,6 +5,10 @@ Dogging - a Pythonista's best friend!
 Dogging stands for Decorator Logging!
 -------------------------------------
 
+.. image:: https://readthedocs.org/projects/dogging/badge/?version=stable
+    :target: http://dogging.readthedocs.io/en/stable/?badge=stable
+    :alt: Documentation Status
+
 .. contents::
     :depth: 2
 
