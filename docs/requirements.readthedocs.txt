@@ -1,0 +1,2 @@
+# requirements common to readthedocs builds and local build go here.
+Sphinx~=1.7

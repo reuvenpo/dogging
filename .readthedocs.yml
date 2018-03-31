@@ -1,0 +1,4 @@
+requirements_file: docs/requirements.readthedocs.txt
+python:
+  version: 2.7
+  pip_install: true
