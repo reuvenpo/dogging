@@ -6,6 +6,8 @@
 # full list see the documentation:
 # http://www.sphinx-doc.org/en/stable/config
 
+import os
+
 # -- Path setup --------------------------------------------------------------
 
 # If extensions (or modules to document with autodoc) are in another directory,
@@ -19,21 +21,32 @@
 
 # -- Project information -----------------------------------------------------
 
-project = u'dogging'
-copyright = u'2018, Reuven Podmazo'
-author = u'Reuven Podmazo'
+import pkg_resources as _pkg_resources
+import email as _email
+import datetime as _datetime
 
-# The short X.Y version
-version = u''
+project = 'dogging'
+_distribution = _pkg_resources.get_distribution(project)
+
+# _distribution.PKG_INFO is the name of the metadata file.
+# This is one of 'PKG-INFO' or 'METADATA'.
+_distribution_metadata = _email.message_from_string(
+    _distribution.get_metadata(_distribution.PKG_INFO)
+)
+
+author = _distribution_metadata['author']
+copyright = ', '.join((str(_datetime.datetime.now().year), author))
+
 # The full version, including alpha/beta/rc tags
-release = u''
+release = _distribution.version
+# The short X.Y version
+version = '.'.join(release.split('.')[:2])
 
 
 # -- General configuration ---------------------------------------------------
 
 # If your documentation needs a minimal Sphinx version, state it here.
-#
-# needs_sphinx = '1.0'
+needs_sphinx = '1.7'
 
 # Add any Sphinx extension module names here, as strings. They can be
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
@@ -102,7 +115,7 @@ html_static_path = ['_static']
 # -- Options for HTMLHelp output ---------------------------------------------
 
 # Output file base name for HTML help builder.
-htmlhelp_basename = 'doggingdoc'
+htmlhelp_basename = project + 'doc'
 
 
 # -- Options for LaTeX output ------------------------------------------------
@@ -129,8 +142,8 @@ latex_elements = {
 # (source start file, target name, title,
 #  author, documentclass [howto, manual, or own class]).
 latex_documents = [
-    (master_doc, 'dogging.tex', u'dogging Documentation',
-     u'Reuven Podmazo', 'manual'),
+    (master_doc, os.extsep.join((project, 'tex')), project + ' Documentation',
+     author, 'manual'),
 ]
 
 
@@ -139,7 +152,7 @@ latex_documents = [
 # One entry per manual page. List of tuples
 # (source start file, name, description, authors, manual section).
 man_pages = [
-    (master_doc, 'dogging', u'dogging Documentation',
+    (master_doc, project, project + ' Documentation',
      [author], 1)
 ]
 
@@ -150,10 +163,14 @@ man_pages = [
 # (source start file, target name, title, author,
 #  dir menu entry, description, category)
 texinfo_documents = [
-    (master_doc, 'dogging', u'dogging Documentation',
-     author, 'dogging', 'One line description of project.',
+    (master_doc, project, project + ' Documentation',
+     author, project, _distribution_metadata['summary'],
      'Miscellaneous'),
 ]
 
 
 # -- Extension configuration -------------------------------------------------
+
+# -- Options for autodoc -----------------------------------------------------
+
+autoclass_content = 'both'
