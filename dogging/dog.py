@@ -351,7 +351,12 @@ class dog(object):
         phase_extras = [None, None, None]
         phase_computers = [None, None, None]
         for phase, specification in zip(_PHASES, (enter, exit, error)):
-            self._phase_level[phase], self._phase_format[phase], extras, computers = resolve_specification(specification)
+            (
+                self._phase_level[phase],
+                self._phase_format[phase],
+                extras,
+                computers
+            ) = resolve_specification(specification)
             phase_extras[phase] = extras
             phase_computers[phase] = computers
 
@@ -415,7 +420,11 @@ class dog(object):
             return computed, special, regular
 
         for phase, arg_names in zip(_PHASES, (enter_arg_names, exit_arg_names, error_arg_names)):
-            self._phase_computed_arg_names[phase], self._phase_special_arg_names[phase], self._phase_regular_arg_names[phase] = (
+            (
+                self._phase_computed_arg_names[phase],
+                self._phase_special_arg_names[phase],
+                self._phase_regular_arg_names[phase]
+            ) = (
                 separate_arg_names(self._phase_format[phase], arg_names)
             )
 
